@@ -24,7 +24,7 @@ Four things make it different from the shell one-liner most people start with:
   function of payload, theme, and a small declared set of environment variables, so the expected
   output of every (fixture, theme) pair is committed and diffed.
 
-Version 0.1.0 <!-- x-release-please-version -->
+Version 0.2.0 <!-- x-release-please-version -->
 
 ---
 
