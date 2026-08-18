@@ -20,3 +20,7 @@ node_modules/
 
 # Generated single-file build
 dist/
+
+# Audit records written by external review tooling. Useful locally,
+# but tool-specific and not part of this project.
+governance/

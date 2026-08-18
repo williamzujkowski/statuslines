@@ -18,19 +18,85 @@
 # AGENTS.md §7.3 forbids presenting degraded state as healthy.
 SL_SEGMENT_STATUS=empty
 
+# sl_segment_user_dir <name>
+# Path to a USER segment of this name, if one exists. User directories only —
+# the shipped directory is handled separately, because the two are checked at
+# different points (see sl_segment_load).
+sl_segment_user_dir() {
+  local name=$1 dir
+  for dir in \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/statuslines/segments" \
+    "$HOME/.claude/statuslines/segments"; do
+    if [ -r "$dir/$name.sh" ]; then
+      printf '%s' "$dir/$name.sh"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# sl_segment_have_user_dirs
+# True when at least one user segment directory exists.
+#
+# Cached so the overwhelmingly common case — no user segments at all — costs two
+# directory tests rather than two per segment. The cache is per line, not per
+# render: sl_render_line runs inside a command substitution, so each line gets
+# its own subshell and re-checks. That is still a reduction from per-segment,
+# and unifying it would mean hoisting the check out of the renderer for no
+# measurable gain.
+sl_segment_have_user_dirs() {
+  if [ -z "${_SL_USER_SEG_DIRS_CHECKED-}" ]; then
+    _SL_USER_SEG_DIRS_CHECKED=1
+    _SL_USER_SEG_DIRS=0
+    if [ -d "${XDG_CONFIG_HOME:-$HOME/.config}/statuslines/segments" ] \
+      || [ -d "$HOME/.claude/statuslines/segments" ]; then
+      _SL_USER_SEG_DIRS=1
+    fi
+  fi
+  [ "$_SL_USER_SEG_DIRS" -eq 1 ]
+}
+
 # sl_segment_load <name>
 # Sources a segment file once. Sets SL_SEGMENT_STATUS on failure.
 #
 # The name reaches a filesystem path, so it is validated first — a theme is
 # just a text file and `../../etc/passwd` is a legal-looking segment name.
+#
+# SECURITY: a segment directory is not a theme directory. A theme is parsed and
+# can never execute (docs/adr/0001-theme-config-format.md); a segment is sourced
+# into this shell on every render. Putting a file in a segment directory is
+# equivalent to installing a plugin.
 sl_segment_load() {
-  local name=$1
+  local name=$1 path loaded_flag
   case "$name" in
     "" | *[!a-z0-9_]*)
       SL_SEGMENT_STATUS=missing
       return 1
       ;;
   esac
+
+  loaded_flag="_sl_loaded_${name}"
+
+  # A user segment is checked BEFORE the already-defined shortcut, because the
+  # single-file bundle pre-defines every shipped segment as a function. Without
+  # this ordering a user segment could never shadow a shipped one in a bundled
+  # build, so the documented precedence would hold in the repository and
+  # silently not hold in the thing people actually install.
+  if [ -z "${!loaded_flag-}" ] && sl_segment_have_user_dirs; then
+    if path=$(sl_segment_user_dir "$name"); then
+      # shellcheck source=/dev/null
+      if ! . "$path" 2>/dev/null; then
+        SL_SEGMENT_STATUS=broken
+        return 1
+      fi
+      if ! declare -f "segment_${name}" >/dev/null 2>&1; then
+        SL_SEGMENT_STATUS=broken
+        return 1
+      fi
+      printf -v "$loaded_flag" '%s' 1
+      return 0
+    fi
+  fi
 
   if declare -f "segment_${name}" >/dev/null 2>&1; then
     return 0
@@ -55,6 +121,7 @@ sl_segment_load() {
     return 1
   fi
 
+  printf -v "$loaded_flag" '%s' 1
   return 0
 }
 
