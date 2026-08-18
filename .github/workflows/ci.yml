@@ -65,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+      - uses: bats-core/bats-action@77d6fb60505b4d0d1d73e48bd035b55074bbfb43 # 4.0.0
         with:
           support-install: "false"
           assert-install: "false"
@@ -89,7 +89,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+      - uses: bats-core/bats-action@77d6fb60505b4d0d1d73e48bd035b55074bbfb43 # 4.0.0
         with:
           support-install: "false"
           assert-install: "false"
@@ -118,7 +118,13 @@ jobs:
   pr-title:
     name: Conventional Commit PR title
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    # Dependabot titles its PRs "ci(deps): Bump <dep> ..." — a valid type and
+    # scope, but a capitalized subject, which this check rejects. The type is
+    # what release-please reads for the version bump, and `ci` is hidden from
+    # the changelog anyway, so the subject case does not matter for a bot PR.
+    # Excluding it here keeps the rule strict for humans without a permanently
+    # red check on every dependency bump.
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     permissions:
       pull-requests: read
     steps:

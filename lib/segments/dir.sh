@@ -21,7 +21,10 @@ segment_dir() {
       while [ "$i" -lt "$depth" ] && [ -n "$rest" ] && [ "$rest" != "/" ]; do
         part=${rest##*/}
         rest=${rest%/*}
-        [ -n "$part" ] || { rest=${rest%/*}; continue; }
+        [ -n "$part" ] || {
+          rest=${rest%/*}
+          continue
+        }
         if [ -n "$acc" ]; then acc="${part}/${acc}"; else acc=$part; fi
         i=$((i + 1))
       done

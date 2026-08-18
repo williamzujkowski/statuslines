@@ -106,8 +106,8 @@ chmod +x "$OUT"
 
 # A bundle that does not run is worse than no bundle, so prove it here rather
 # than discovering it in a release.
-if ! out=$(printf '{"workspace":{"current_dir":"/tmp/x"},"model":{"display_name":"Test"},"context_window":{"used_percentage":42,"context_window_size":200000}}' |
-  COLUMNS=120 STATUSLINE_THEME=default bash "$OUT" 2>/dev/null) || [ -z "$out" ]; then
+if ! out=$(printf '{"workspace":{"current_dir":"/tmp/x"},"model":{"display_name":"Test"},"context_window":{"used_percentage":42,"context_window_size":200000}}' \
+  | COLUMNS=120 STATUSLINE_THEME=default bash "$OUT" 2>/dev/null) || [ -z "$out" ]; then
   printf 'bundle.sh: the generated bundle failed to render\n' >&2
   exit 1
 fi

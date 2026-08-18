@@ -11,7 +11,7 @@ HEADER=$(grep -v '^#' "$MSG_FILE" | grep -v '^[[:space:]]*$' | head -n 1 || true
 
 # Merge, revert and fixup commits are exempt.
 case "$HEADER" in
-  Merge\ *|Revert\ *|fixup!\ *|squash!\ *) exit 0 ;;
+  Merge\ * | Revert\ * | fixup!\ * | squash!\ *) exit 0 ;;
 esac
 
 TYPES='feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert'

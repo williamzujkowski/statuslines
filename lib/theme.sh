@@ -48,8 +48,14 @@ sl_theme_parse() {
     # every segment together — a bug that looks like a rendering fault rather
     # than a config one.
     case "$value" in
-      '"'*'"') value=${value#\"}; value=${value%\"} ;;
-      "'"*"'") value=${value#\'}; value=${value%\'} ;;
+      '"'*'"')
+        value=${value#\"}
+        value=${value%\"}
+        ;;
+      "'"*"'")
+        value=${value#\'}
+        value=${value%\'}
+        ;;
     esac
 
     # Allowlist the key shape. This is the check that makes `printf -v` on a

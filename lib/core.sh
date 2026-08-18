@@ -218,7 +218,10 @@ sl_num() {
   local fallback=${2-0}
   local whole
   case "$value" in
-    "$SL_ABSENT" | "") printf '%s' "$fallback"; return ;;
+    "$SL_ABSENT" | "")
+      printf '%s' "$fallback"
+      return
+      ;;
   esac
   whole=${value%%.*}
   case "$whole" in

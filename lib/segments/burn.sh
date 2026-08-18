@@ -18,7 +18,7 @@ segment_burn() {
   case "$cents" in '' | *[!0-9]*) return 1 ;; esac
   [ "$cents" -gt 0 ] || return 1
 
-  rate=$((cents * 3600000 / ms))  # cents per hour
+  rate=$((cents * 3600000 / ms)) # cents per hour
   color=$(sl_threshold_color "$rate" \
     "${SL_THEME_burn_warn:-500}" \
     "${SL_THEME_burn_crit:-1500}")
