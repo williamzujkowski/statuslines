@@ -1,0 +1,1 @@
+{"session_name": "first\nsecond", "workspace": {"current_dir": "/home/user/a\nb/proj"}, "model": {"display_name": "Opus\nInjected"}, "cost": {"total_cost_usd": 0.5, "total_duration_ms": 300000}, "context_window": {"used_percentage": 12, "context_window_size": 200000}}

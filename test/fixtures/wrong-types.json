@@ -1,0 +1,17 @@
+{
+  "workspace": {
+    "current_dir": "/home/user/proj"
+  },
+  "model": {
+    "display_name": "Opus"
+  },
+  "cost": {
+    "total_cost_usd": "lots",
+    "total_duration_ms": "ages",
+    "total_lines_added": "many"
+  },
+  "context_window": {
+    "used_percentage": "most",
+    "context_window_size": "big"
+  }
+}

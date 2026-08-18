@@ -1,0 +1,72 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "transcript_path": "/home/user/.claude/projects/demo/session.jsonl",
+  "prompt_id": "00000000-0000-4000-8000-0000000000aa",
+  "session_name": "overhaul",
+  "cwd": "/home/user/projects/statuslines",
+  "workspace": {
+    "current_dir": "/home/user/projects/statuslines",
+    "project_dir": "/home/user/projects/statuslines",
+    "added_dirs": [],
+    "repo": {
+      "host": "github.com",
+      "owner": "example",
+      "name": "statuslines"
+    }
+  },
+  "version": "2.1.234",
+  "output_style": {
+    "name": "default"
+  },
+  "model": {
+    "id": "claude-opus-5",
+    "display_name": "Opus"
+  },
+  "fast_mode": true,
+  "thinking": {
+    "enabled": true
+  },
+  "effort": {
+    "level": "high"
+  },
+  "agent": {
+    "name": "builder"
+  },
+  "agent_type": "builder",
+  "cost": {
+    "total_cost_usd": 3.4211,
+    "total_duration_ms": 4200000,
+    "total_api_duration_ms": 1800000,
+    "total_lines_added": 412,
+    "total_lines_removed": 88
+  },
+  "context_window": {
+    "used_percentage": 63,
+    "remaining_percentage": 37,
+    "context_window_size": 200000,
+    "total_input_tokens": 120000,
+    "total_output_tokens": 4200,
+    "current_usage": {
+      "input_tokens": 9000,
+      "output_tokens": 4200,
+      "cache_read_input_tokens": 110000,
+      "cache_creation_input_tokens": 1000
+    }
+  },
+  "exceeds_200k_tokens": false,
+  "rate_limits": {
+    "five_hour": {
+      "used_percentage": 41.5,
+      "resets_at": 1755500000
+    },
+    "seven_day": {
+      "used_percentage": 12.0,
+      "resets_at": 1755900000
+    }
+  },
+  "pr": {
+    "number": 17,
+    "url": "https://github.com/example/statuslines/pull/17",
+    "review_state": "pending"
+  }
+}

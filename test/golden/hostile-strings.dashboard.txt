@@ -1,0 +1,2 @@
+[34m.../[2J[Hcleared/proj[0m[2m | [0m[32mfeature/[41mhighlight[0m +wt[0m[2m | [0m[35mOpus[5mBLINK[0m[2m | [0m[95m[agentCR][0m[2m | [0m[2mctx [0m[32m45%[0m [32m####......[0m
+[33m$1.25[0m[2m | [0m[33m$7.50/h[0m[2m | [0m[36m10m[0m[2m | [0m[32m+10[0m[31m/-2[0m

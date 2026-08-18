@@ -1,0 +1,30 @@
+{
+  "workspace": {
+    "current_dir": "/home/user/proj"
+  },
+  "model": {
+    "id": "claude-opus-5[1m]",
+    "display_name": "Opus 1M"
+  },
+  "context_window": {
+    "used_percentage": 30,
+    "remaining_percentage": 70,
+    "context_window_size": 1000000,
+    "total_input_tokens": 300000,
+    "total_output_tokens": 5000,
+    "current_usage": {
+      "input_tokens": 20000,
+      "output_tokens": 5000,
+      "cache_read_input_tokens": 280000,
+      "cache_creation_input_tokens": 0
+    }
+  },
+  "exceeds_200k_tokens": true,
+  "cost": {
+    "total_cost_usd": 12.5,
+    "total_duration_ms": 9000000,
+    "total_api_duration_ms": 5400000,
+    "total_lines_added": 1200,
+    "total_lines_removed": 300
+  }
+}
