@@ -128,8 +128,13 @@ all.
 ## 3. Segments
 
 One file per segment in `lib/segments/`, each exporting exactly one `segment_<name>` function.
-A segment writes its fragment to stdout and returns non-zero to mean "nothing to show" — which is a
+A segment writes its fragment to stdout and returns `1` to mean "nothing to show" — which is a
 normal state, not an error. Segments named in a `line<N>` key that do not exist are skipped.
+
+A segment that *fails* — a missing file, a syntax error, an exit status above `1` — is different,
+and renders as `?<name>` in its slot rather than as nothing. Without that, a crashed segment and a
+quiet one look identical, and a theme can appear to be working while silently missing a segment.
+Themes control the marker with `error_marker` and `error_color`.
 
 | Segment | Shows | Payload fields read | Renders nothing when | Theme keys |
 |---|---|---|---|---|
@@ -202,6 +207,8 @@ theme can describe itself to a human and to `make demo`.
 | `separator_color` | `dim` | Color for the separator |
 | `width_reserve` | `0` | Columns to leave unclaimed. Subtracted from `COLUMNS` before fitting. All shipped themes use `6`, because Claude Code renders its own auto-compact notice beside the status line |
 | `drop_order` | empty | Whitespace-separated segment names, first to be dropped first. Empty means right to left. See §7 |
+| `error_marker` | `?` | Prefix for the marker shown in place of a segment that is broken or that the theme names but does not exist. The segment name follows it, so a broken `cost` renders as `?cost` |
+| `error_color` | `red` | Color for that marker. The marker is text, so it stays legible with color off |
 
 ### 4.3 Global
 

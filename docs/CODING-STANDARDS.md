@@ -229,8 +229,22 @@ The module contract in this repository is small and MUST be respected:
 - `lib/render.sh` owns layout, separators, truncation, and dispatch. It is the only file that
   decides what goes where.
 - `lib/segments/<name>.sh` exports exactly one function, `segment_<name>`, which writes its
-  fragment to stdout and returns non-zero to mean "I have nothing to show". A segment MUST NOT
+  fragment to stdout and signals its outcome through its exit status. A segment MUST NOT
   know about separators, about other segments, or about the terminal width.
+The segment exit status is a three-way signal, not a boolean:
+
+| Status | Meaning | Rendered as |
+|---|---|---|
+| `0` | wrote a fragment | the fragment |
+| `1` | nothing to show — a field was absent, which is normal | nothing |
+| `>1` | the segment failed | a visible marker |
+
+The third row is the one that is easy to get wrong. A segment that crashes and a segment that has
+nothing to say are both absent from the line, and if they render identically then a broken segment
+is invisible — degraded state presented as healthy, which §4 forbids. Failure to *load* a segment
+at all (a missing file, a syntax error, a file that does not define the function it promised) is
+treated the same way.
+
 - `lib/colors.sh` owns every escape sequence. No other file may contain a literal `\033`.
 
 A segment reaching around the renderer to emit a separator, or a renderer special-casing one

@@ -180,3 +180,50 @@ render_raw() {
     "${BASH_BIN:-bash}" "$SL" <<<"$payload" 2>/dev/null)
   [ "${#out}" -lt 200 ]
 }
+
+@test "a broken segment renders a visible marker, not silence" {
+  # Regression for #35. A segment that crashes previously vanished, which made
+  # it indistinguishable from one that simply had nothing to show — degraded
+  # state presented as healthy, which AGENTS.md §7.3 forbids.
+  local seg="${SL_REPO}/lib/segments/zzbroken.sh"
+  printf 'segment_zzbroken() { ((( }\n' >"$seg"
+  # shellcheck disable=SC2064
+  trap "rm -f '$seg'" RETURN
+
+  local theme="${BATS_TEST_TMPDIR}/statuslines/themes/brk.conf"
+  mkdir -p "${BATS_TEST_TMPDIR}/statuslines/themes"
+  printf 'name = brk\nline1 = dir zzbroken\nseparator = " | "\ncolor = off\n' >"$theme"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=brk \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  [[ "$out" == *"?zzbroken"* ]] || { echo "no marker for a broken segment: $out"; return 1; }
+}
+
+@test "a theme naming a segment that does not exist says so" {
+  local theme="${BATS_TEST_TMPDIR}/statuslines/themes/miss.conf"
+  mkdir -p "${BATS_TEST_TMPDIR}/statuslines/themes"
+  printf 'name = miss\nline1 = dir nosuchsegment\nseparator = " | "\ncolor = off\n' >"$theme"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=miss \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  [[ "$out" == *"?nosuchsegment"* ]] || { echo "no marker for a missing segment: $out"; return 1; }
+}
+
+@test "a segment with nothing to show stays silent and gets no marker" {
+  # The other half of the contract: absent data is normal, not an error. A
+  # marker here would make every quiet segment look broken.
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=plain \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  case "$out" in
+    *"?"*) echo "a quiet segment was marked as broken: $out"; return 1 ;;
+  esac
+  [ -n "$out" ]
+}

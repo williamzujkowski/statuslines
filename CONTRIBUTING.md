@@ -124,8 +124,12 @@ The contract:
 
 - **Exactly one exported function, named `segment_<name>`.** The renderer sources the file lazily
   and dispatches by name; anything else in the file should be a `_sl_`-prefixed helper.
-- **Write the fragment to stdout. Return non-zero for "nothing to show."** Not an empty string and
+- **Write the fragment to stdout. Return `1` for "nothing to show."** Not an empty string and
   not an error — non-zero is the normal, expected way to say the payload has nothing here.
+- **Return greater than `1` only when the segment genuinely failed.** `1` means "the data was not
+  there", which is ordinary; anything higher means "I am broken", and the renderer prints a visible
+  marker in the slot instead of leaving it silently empty. Do not return `2` for absent data — every
+  quiet segment would look broken.
 - **Know nothing about layout.** No separators, no other segments, no terminal width. That
   ignorance is what lets someone add a segment without reading `lib/render.sh`.
 - **Read the payload only through the `sl_*` helpers.** `sl_has`, `sl_get`, `sl_int`, `sl_num`,
