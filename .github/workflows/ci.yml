@@ -1,0 +1,159 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Least privilege by default; jobs opt into more where they need it.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Third-party actions are pinned by commit SHA with the tag in a trailing
+# comment (docs/CODING-STANDARDS.md §9). Tool binaries are pinned by version
+# AND sha256 — a tag can move, a checksum cannot. Dependabot opens PRs to bump
+# these; see .github/dependabot.yml.
+env:
+  SHFMT_VERSION: "3.13.1"
+  SHFMT_SHA256: "fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1"
+  SHELLCHECK_VERSION: "0.11.0"
+  SHELLCHECK_SHA256: "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+
+jobs:
+  lint:
+    name: Lint (shellcheck + shfmt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install shellcheck ${{ env.SHELLCHECK_VERSION }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+          curl -sSfL "$url" -o shellcheck.tar.xz
+          echo "${SHELLCHECK_SHA256}  shellcheck.tar.xz" | sha256sum -c -
+          tar -xJf shellcheck.tar.xz
+          sudo install -m 0755 "shellcheck-v${SHELLCHECK_VERSION}/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
+
+      - name: Install shfmt ${{ env.SHFMT_VERSION }}
+        run: |
+          set -euo pipefail
+          url="https://github.com/mvdan/sh/releases/download/v${SHFMT_VERSION}/shfmt_v${SHFMT_VERSION}_linux_amd64"
+          curl -sSfL "$url" -o shfmt
+          echo "${SHFMT_SHA256}  shfmt" | sha256sum -c -
+          sudo install -m 0755 shfmt /usr/local/bin/shfmt
+          shfmt --version
+
+      - run: make lint
+      - run: make fmt-check
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu-latest and macos-latest track the current supported runner
+        # images; the pinned older images below guard the compatibility floor.
+        os: [ubuntu-latest, ubuntu-22.04, macos-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+        with:
+          support-install: "false"
+          assert-install: "false"
+          detik-install: "false"
+          file-install: "false"
+
+      - name: Ensure jq is present
+        run: |
+          set -euo pipefail
+          if ! command -v jq >/dev/null 2>&1; then
+            if [ "$RUNNER_OS" = "macOS" ]; then brew install jq; else sudo apt-get update && sudo apt-get install -y jq; fi
+          fi
+          jq --version
+          bash --version | head -1
+
+      - run: make test
+
+  bash32:
+    name: Compatibility floor (bash 3.2)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: bats-core/bats-action@5b1e60c2ee94cb1b44a616ea4b1f466f9d6e38ef # 4.0.0
+        with:
+          support-install: "false"
+          assert-install: "false"
+          detik-install: "false"
+          file-install: "false"
+
+      # macOS ships bash 3.2.57 as /bin/bash and always will (GPLv3). This job
+      # is the reason AGENTS.md §5.1 forbids bash 4+ syntax; without it the ban
+      # is unenforced folklore.
+      - name: Confirm the floor is actually 3.2
+        run: |
+          set -euo pipefail
+          /bin/bash --version | head -1
+          /bin/bash -c 'case "$BASH_VERSION" in 3.2*) exit 0 ;; *) echo "expected bash 3.2, got $BASH_VERSION"; exit 1 ;; esac'
+
+      - name: Run the suite under /bin/bash
+        run: BASH_BIN=/bin/bash make test
+
+  bench:
+    name: Latency budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: make bench
+
+  pr-title:
+    name: Conventional Commit PR title
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: read
+    steps:
+      # The PR title becomes the squashed commit subject that release-please
+      # reads for the version bump, so this is the authoritative check.
+      - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            docs
+            test
+            build
+            ci
+            chore
+            style
+            revert
+          scopes: |
+            core
+            render
+            segments
+            themes
+            config
+            install
+            test
+            docs
+            ci
+            bench
+            deps
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).+[^.]$
+          subjectPatternError: |
+            The subject "{subject}" must start with a lowercase letter and must not
+            end with a period. See AGENTS.md §10.6.

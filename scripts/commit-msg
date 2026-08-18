@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Conventional Commits check — pure bash, no node required.
+# Installed to .git/hooks/commit-msg by `make setup`.
+# Mirrors .commitlintrc.yml; CI runs the real commitlint as the authority.
+set -euo pipefail
+
+MSG_FILE="${1:?usage: commit-msg <file>}"
+
+# First non-comment, non-empty line is the header.
+HEADER=$(grep -v '^#' "$MSG_FILE" | grep -v '^[[:space:]]*$' | head -n 1 || true)
+
+# Merge, revert and fixup commits are exempt.
+case "$HEADER" in
+  Merge\ *|Revert\ *|fixup!\ *|squash!\ *) exit 0 ;;
+esac
+
+TYPES='feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert'
+PATTERN="^(${TYPES})(\([a-z0-9._/-]+\))?!?: .+"
+
+fail() {
+  printf '\n  Commit message rejected: %s\n\n' "$1" >&2
+  printf '  Got:      %s\n\n' "${HEADER:-<empty>}" >&2
+  cat >&2 <<'HELP'
+  Expected: <type>(<scope>): <description>
+
+    types:  feat fix perf refactor docs test build ci chore style revert
+    scopes: core render segments themes config install test docs ci bench deps
+            (or a segment name, e.g. segments/git)
+
+    feat(segments): add usage-block burn rate segment
+    fix(render): stop truncating multibyte branch names mid-character
+    feat(themes)!: rename `separator` key to `divider`
+
+  Rules: imperative mood, lowercase description, no trailing period,
+         header <= 100 chars. Breaking changes need `!` and a
+         `BREAKING CHANGE:` footer.
+
+  See AGENTS.md section 10.6.
+HELP
+  exit 1
+}
+
+[ -n "$HEADER" ] || fail "empty commit message"
+
+if ! printf '%s' "$HEADER" | grep -Eq "$PATTERN"; then
+  fail "does not match the Conventional Commits format"
+fi
+
+if [ "${#HEADER}" -gt 100 ]; then
+  fail "header is ${#HEADER} characters (max 100)"
+fi
+
+# Description is everything after the first ": "
+DESC=${HEADER#*: }
+case "$DESC" in
+  *.) fail "description must not end with a period" ;;
+esac
+
+FIRST_CHAR=${DESC%"${DESC#?}"}
+case "$FIRST_CHAR" in
+  [A-Z]) fail "description must start lowercase" ;;
+esac
+
+exit 0

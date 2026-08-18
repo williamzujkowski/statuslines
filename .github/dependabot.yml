@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Actions are pinned by SHA (docs/CODING-STANDARDS.md §9). Dependabot
+  # understands SHA pins with a version comment and will bump both together,
+  # which is the only sustainable way to keep pinned actions current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: scope
+    labels:
+      - dependencies
+    groups:
+      actions:
+        patterns: ["*"]
