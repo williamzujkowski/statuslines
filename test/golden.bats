@@ -74,3 +74,37 @@ setup() {
     done
   done
 }
+
+@test "a user segment shadows a shipped one in the bundled build too" {
+  # Adversarial review finding. The repo-checkout shadow test in
+  # test/invariants.bats passes under EITHER ordering of the user-directory
+  # check and the already-defined-function shortcut, because only the bundle
+  # pre-defines every shipped segment as a function. So the load-order decision
+  # that makes shadowing work in the bundle was guarded by a comment and
+  # nothing else — and that exact regression already shipped once.
+  #
+  # Reorder sl_segment_load to put the `declare -f` shortcut first and this is
+  # the only test that fails.
+  local out="${BATS_TEST_TMPDIR}/bundle.sh"
+  run bash "${SL_REPO}/scripts/bundle.sh" "$out"
+  [ "$status" -eq 0 ]
+
+  local segdir="${BATS_TEST_TMPDIR}/statuslines/segments"
+  mkdir -p "$segdir"
+  printf 'segment_cost() { sl_paint green "SHADOWED"; }\n' >"$segdir/cost.sh"
+
+  local rendered
+  rendered=$(COLUMNS=140 SL_NOW="$SL_TEST_NOW" STATUSLINE_THEME=plain \
+    HOME="${BATS_TEST_TMPDIR}/home" \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$out" <"${SL_REPO}/test/fixtures/full.json" 2>/dev/null)
+
+  [[ "$rendered" == *SHADOWED* ]] || {
+    echo "bundle did not honor the user segment: $rendered"
+    return 1
+  }
+  [[ "$rendered" != *'$3.42'* ]] || {
+    echo "bundle rendered the shipped cost segment: $rendered"
+    return 1
+  }
+}

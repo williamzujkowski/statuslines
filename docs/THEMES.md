@@ -125,6 +125,32 @@ all.
 
 ---
 
+### Segment resolution
+
+Segments are looked up the same way themes are, user directories first:
+
+1. `$XDG_CONFIG_HOME/statuslines/segments/<name>.sh` (default `~/.config/statuslines/segments/`)
+2. `~/.claude/statuslines/segments/<name>.sh`
+3. the shipped `lib/segments/<name>.sh`
+
+A user segment of the same name shadows a shipped one, so a segment can be
+overridden without editing the repository.
+
+> **A segment directory is not a theme directory, and the difference matters.**
+>
+> A theme is *data*: it is parsed, never sourced, so installing one someone
+> handed you cannot run their code (`docs/adr/0001-theme-config-format.md`).
+>
+> A segment is *code*. Loading one means sourcing it into the rendering shell,
+> on every render, with your privileges. Putting a file in a segment directory
+> is equivalent to installing a plugin and carries the same trust requirement.
+> The two directories are named and documented separately for exactly this
+> reason — do not merge them into one "extensions" directory.
+
+A theme that names a segment which cannot be found renders `?<name>` in its
+slot rather than omitting it silently, so a theme written for a machine that has
+a user segment degrades visibly on a machine that does not.
+
 ## 3. Segments
 
 One file per segment in `lib/segments/`, each exporting exactly one `segment_<name>` function.

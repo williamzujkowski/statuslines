@@ -185,10 +185,12 @@ render_raw() {
   # Regression for #35. A segment that crashes previously vanished, which made
   # it indistinguishable from one that simply had nothing to show — degraded
   # state presented as healthy, which AGENTS.md §7.3 forbids.
-  local seg="${SL_REPO}/lib/segments/zzbroken.sh"
-  printf 'segment_zzbroken() { ((( }\n' >"$seg"
-  # shellcheck disable=SC2064
-  trap "rm -f '$seg'" RETURN
+  # Planted in the test's own segment directory, not the live repository tree:
+  # a RETURN trap does not survive an interrupted run, and it races a parallel
+  # bats invocation.
+  local segdir="${BATS_TEST_TMPDIR}/statuslines/segments"
+  mkdir -p "$segdir"
+  printf 'segment_zzbroken() { ((( }\n' >"$segdir/zzbroken.sh"
 
   local theme="${BATS_TEST_TMPDIR}/statuslines/themes/brk.conf"
   mkdir -p "${BATS_TEST_TMPDIR}/statuslines/themes"
@@ -196,6 +198,7 @@ render_raw() {
 
   local out
   out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=brk \
+    HOME="${BATS_TEST_TMPDIR}/home" \
     XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
     "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
 
@@ -209,6 +212,7 @@ render_raw() {
 
   local out
   out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=miss \
+    HOME="${BATS_TEST_TMPDIR}/home" \
     XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
     "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
 
@@ -240,6 +244,7 @@ render_raw() {
 
   local out
   out=$(COLUMNS=140 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=evil \
+    HOME="${BATS_TEST_TMPDIR}/home" \
     XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
     "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/full.json" 2>/dev/null)
 
@@ -249,16 +254,66 @@ render_raw() {
   [ -n "$out" ]
 }
 
+@test "a user segment directory is searched before the shipped one" {
+  local segdir="${BATS_TEST_TMPDIR}/statuslines/segments"
+  mkdir -p "$segdir"
+  printf 'segment_zzuser() { sl_paint green "from-user-dir"; }\n' >"$segdir/zzuser.sh"
+
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  printf 'name = u\nline1 = dir zzuser\nseparator = " | "\ncolor = off\n' >"$themedir/u.conf"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=u \
+    HOME="${BATS_TEST_TMPDIR}/home" \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  [[ "$out" == *"from-user-dir"* ]] || { echo "user segment not loaded: $out"; return 1; }
+}
+
+@test "a user segment shadows a shipped segment of the same name" {
+  local segdir="${BATS_TEST_TMPDIR}/statuslines/segments"
+  mkdir -p "$segdir"
+  printf 'segment_cost() { sl_paint green "SHADOWED"; }\n' >"$segdir/cost.sh"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=plain \
+    HOME="${BATS_TEST_TMPDIR}/home" \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/full.json" 2>/dev/null)
+
+  [[ "$out" == *"SHADOWED"* ]] || { echo "shipped segment was not shadowed: $out"; return 1; }
+  [[ "$out" != *'$3.42'* ]] || { echo "shipped cost segment still rendered: $out"; return 1; }
+}
+
+@test "a user segment cannot be reached by a traversing name" {
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  # The theme is data, so it can say anything; the segment loader is what has
+  # to refuse. A name with a slash or a dot must never become a path.
+  printf 'name = t\nline1 = dir ../../../etc/passwd\nseparator = " | "\ncolor = off\n' >"$themedir/t.conf"
+
+  local out status
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=t \
+    HOME="${BATS_TEST_TMPDIR}/home" \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+  status=$?
+
+  [ "$status" -eq 0 ]
+  [[ "$out" != *root:* ]]
+}
+
 @test "a segment that prints then returns 1 shows nothing" {
   # Adversarial review finding. `return 1` means "nothing to show" even when the
   # segment already printed something, because it has not decided to show that
   # fragment. Rendering it anyway both contradicts the documented convention and
   # silently changes behaviour from the previous `out=$(...) || out=""`, which
   # discarded output on any non-zero return.
-  local seg="${SL_REPO}/lib/segments/zzpartial.sh"
-  printf "segment_zzpartial() { printf 'PARTIAL'; return 1; }\n" >"$seg"
-  # shellcheck disable=SC2064
-  trap "rm -f '$seg'" RETURN
+  local segdir="${BATS_TEST_TMPDIR}/statuslines/segments"
+  mkdir -p "$segdir"
+  printf "segment_zzpartial() { printf 'PARTIAL'; return 1; }\n" >"$segdir/zzpartial.sh"
 
   local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
   mkdir -p "$themedir"
@@ -266,6 +321,7 @@ render_raw() {
 
   local out
   out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=p \
+    HOME="${BATS_TEST_TMPDIR}/home" \
     XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
     "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
 

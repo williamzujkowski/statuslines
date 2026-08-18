@@ -126,6 +126,10 @@ The contract:
   and dispatches by name; anything else in the file should be a `_sl_`-prefixed helper.
 - **Write the fragment to stdout. Return `1` for "nothing to show."** Not an empty string and
   not an error — non-zero is the normal, expected way to say the payload has nothing here.
+- **A segment may live outside the repository.** `~/.config/statuslines/segments/` and
+  `~/.claude/statuslines/segments/` are searched before `lib/segments/`, so an integration with
+  private tooling belongs there rather than in a pull request here. Note that unlike a theme, a
+  segment is code and is sourced — a segment directory is a plugin directory.
 - **Return greater than `1` only when the segment genuinely failed.** `1` means "the data was not
   there", which is ordinary; anything higher means "I am broken", and the renderer prints a visible
   marker in the slot instead of leaving it silently empty. Do not return `2` for absent data — every
