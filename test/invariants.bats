@@ -248,3 +248,29 @@ render_raw() {
   esac
   [ -n "$out" ]
 }
+
+@test "a segment that prints then returns 1 shows nothing" {
+  # Adversarial review finding. `return 1` means "nothing to show" even when the
+  # segment already printed something, because it has not decided to show that
+  # fragment. Rendering it anyway both contradicts the documented convention and
+  # silently changes behaviour from the previous `out=$(...) || out=""`, which
+  # discarded output on any non-zero return.
+  local seg="${SL_REPO}/lib/segments/zzpartial.sh"
+  printf "segment_zzpartial() { printf 'PARTIAL'; return 1; }\n" >"$seg"
+  # shellcheck disable=SC2064
+  trap "rm -f '$seg'" RETURN
+
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  printf 'name = p\nline1 = dir zzpartial\nseparator = " | "\ncolor = off\n' >"$themedir/p.conf"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=p \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  [[ "$out" != *PARTIAL* ]] || { echo "abandoned fragment was rendered: $out"; return 1; }
+  # It is empty, not broken — no marker either.
+  [[ "$out" != *"?zzpartial"* ]] || { echo "return 1 was treated as failure: $out"; return 1; }
+  [ -n "$out" ]
+}

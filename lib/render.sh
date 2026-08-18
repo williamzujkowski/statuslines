@@ -99,7 +99,13 @@ sl_segment_render() {
     return 1
   fi
 
-  if [ -z "$out" ]; then
+  # rc of 1 means "nothing to show" even when the segment printed something
+  # first. A segment that emits a partial fragment and then abandons it has not
+  # decided to show that fragment, and rendering it anyway would contradict the
+  # convention documented directly above — and would silently change behaviour
+  # from the previous `out=$(...) || out=""`, which discarded output on any
+  # non-zero return.
+  if [ "$rc" -ne 0 ] || [ -z "$out" ]; then
     SL_SEGMENT_STATUS=empty
     return 1
   fi
