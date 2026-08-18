@@ -1,0 +1,22 @@
+# Local scratch
+.nexus-agents/
+*.local
+*.tmp
+
+# Test artifacts
+test/tmp/
+test/out/
+bench/results/
+
+# Editors
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Dev tooling installed locally
+.tools/
+node_modules/
+
+# Generated single-file build
+dist/
