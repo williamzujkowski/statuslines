@@ -180,3 +180,97 @@ render_raw() {
     "${BASH_BIN:-bash}" "$SL" <<<"$payload" 2>/dev/null)
   [ "${#out}" -lt 200 ]
 }
+
+@test "a broken segment renders a visible marker, not silence" {
+  # Regression for #35. A segment that crashes previously vanished, which made
+  # it indistinguishable from one that simply had nothing to show — degraded
+  # state presented as healthy, which AGENTS.md §7.3 forbids.
+  local seg="${SL_REPO}/lib/segments/zzbroken.sh"
+  printf 'segment_zzbroken() { ((( }\n' >"$seg"
+  # shellcheck disable=SC2064
+  trap "rm -f '$seg'" RETURN
+
+  local theme="${BATS_TEST_TMPDIR}/statuslines/themes/brk.conf"
+  mkdir -p "${BATS_TEST_TMPDIR}/statuslines/themes"
+  printf 'name = brk\nline1 = dir zzbroken\nseparator = " | "\ncolor = off\n' >"$theme"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=brk \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  [[ "$out" == *"?zzbroken"* ]] || { echo "no marker for a broken segment: $out"; return 1; }
+}
+
+@test "a theme naming a segment that does not exist says so" {
+  local theme="${BATS_TEST_TMPDIR}/statuslines/themes/miss.conf"
+  mkdir -p "${BATS_TEST_TMPDIR}/statuslines/themes"
+  printf 'name = miss\nline1 = dir nosuchsegment\nseparator = " | "\ncolor = off\n' >"$theme"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=miss \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  [[ "$out" == *"?nosuchsegment"* ]] || { echo "no marker for a missing segment: $out"; return 1; }
+}
+
+@test "a segment with nothing to show stays silent and gets no marker" {
+  # The other half of the contract: absent data is normal, not an error. A
+  # marker here would make every quiet segment look broken.
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=plain \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  case "$out" in
+    *"?"*) echo "a quiet segment was marked as broken: $out"; return 1 ;;
+  esac
+  [ -n "$out" ]
+}
+
+@test "regression: a theme file cannot inject escape sequences" {
+  # Two routes, both closed: a control character in an ordinary theme value
+  # (pre-existing, e.g. a screen-clearing separator), and one in a segment
+  # NAME, which only became reachable once unknown segments started rendering
+  # a marker. A theme is data and must never be able to drive the terminal.
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  printf 'name = evil\nline1 = dir \033[31mPWNED\033[0m model\nseparator = "\033[2J\033[H"\ncontext_label = \033[5mB\ncolor = off\n' \
+    >"$themedir/evil.conf"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=evil \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/full.json" 2>/dev/null)
+
+  case "$out" in
+    *$'\033'*) echo "theme injected an escape: $(printf '%q' "$out")"; return 1 ;;
+  esac
+  [ -n "$out" ]
+}
+
+@test "a segment that prints then returns 1 shows nothing" {
+  # Adversarial review finding. `return 1` means "nothing to show" even when the
+  # segment already printed something, because it has not decided to show that
+  # fragment. Rendering it anyway both contradicts the documented convention and
+  # silently changes behaviour from the previous `out=$(...) || out=""`, which
+  # discarded output on any non-zero return.
+  local seg="${SL_REPO}/lib/segments/zzpartial.sh"
+  printf "segment_zzpartial() { printf 'PARTIAL'; return 1; }\n" >"$seg"
+  # shellcheck disable=SC2064
+  trap "rm -f '$seg'" RETURN
+
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  printf 'name = p\nline1 = dir zzpartial\nseparator = " | "\ncolor = off\n' >"$themedir/p.conf"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 STATUSLINE_THEME=p \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/minimal.json" 2>/dev/null)
+
+  [[ "$out" != *PARTIAL* ]] || { echo "abandoned fragment was rendered: $out"; return 1; }
+  # It is empty, not broken — no marker either.
+  [[ "$out" != *"?zzpartial"* ]] || { echo "return 1 was treated as failure: $out"; return 1; }
+  [ -n "$out" ]
+}

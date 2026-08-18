@@ -55,6 +55,16 @@ Two constraints make this safe rather than merely simple:
 
 - Installing a theme cannot execute code. A theme can make the line ugly; it
   cannot read the user's files.
+- **"Cannot execute code" was not the same as "cannot do harm", and the first
+  version of this decision conflated them.** Theme values are rendered straight
+  to the terminal, and the parser did not strip control characters, so a
+  `separator` containing `ESC [ 2 J` cleared the user's screen on every render
+  — no code execution required, and `NO_COLOR` did not help because the escape
+  came from the data rather than from the color layer. The parser now strips
+  control characters from every value (`lib/theme.sh`), which is what actually
+  makes this consequence true. Anything that renders a theme-supplied string
+  inherits that dependency: if a value ever bypasses `sl_theme_parse`, it must
+  be scrubbed at its own source.
 - Themes can be reviewed as data, which makes accepting community themes a
   reasonable thing to do.
 - Theme authors lose conditionals and computation. Anything that needs logic

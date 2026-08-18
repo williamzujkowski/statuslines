@@ -120,3 +120,33 @@ setup() {
   SL_NOW=1700000000
   [ "$(sl_now)" = "1700000000" ]
 }
+
+@test "sl_theme_parse strips control characters from values" {
+  # ADR-0001 promises that installing a theme cannot harm you. That promise was
+  # unenforced: theme values are rendered straight to the terminal, so a
+  # separator containing ESC [ 2 J cleared the screen on every render. No theme
+  # value legitimately contains a control character.
+  local tmp="${BATS_TEST_TMPDIR}/evil.conf"
+  printf 'separator = "\033[2J\033[H"\ncontext_label = \033[5mBLINK\nline1 = dir \033[31mevil\n' >"$tmp"
+  sl_theme_load "$tmp"
+
+  local v
+  for key in separator context_label line1; do
+    v=$(sl_theme_get "$key")
+    case "$v" in
+      *$'\033'*) echo "escape survived in theme key $key: $(printf '%q' "$v")"; return 1 ;;
+    esac
+  done
+  # The printable remainder is kept, so the theme still does something sane.
+  [ "$(sl_theme_get context_label)" = "[5mBLINK" ]
+}
+
+@test "sl_scrub removes control characters and bounds length" {
+  local out
+  out=$(sl_scrub "$(printf 'a\033[31mb\007c')" 80)
+  case "$out" in *$'\033'* | *$'\007'*) return 1 ;; esac
+  [ "$out" = "a[31mbc" ]
+
+  out=$(sl_scrub "$(printf 'x%.0s' $(seq 1 100))" 10)
+  [ "${#out}" -eq 10 ]
+}

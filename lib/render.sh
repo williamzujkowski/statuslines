@@ -6,40 +6,113 @@
 # what lets a contributor add a segment without reading this file
 # (CODING-STANDARDS §6.5).
 
+# Segment outcome, set by sl_segment_render on every call:
+#   ok      — produced a fragment
+#   empty   — ran fine and had nothing to show (a field was absent)
+#   missing — the theme names a segment that does not exist
+#   broken  — the segment exists but failed to load or errored
+#
+# `empty` renders nothing. `missing` and `broken` render a visible marker,
+# because a segment that is silently absent because it crashed looks exactly
+# like one that is silently absent because it had nothing to say, and
+# AGENTS.md §7.3 forbids presenting degraded state as healthy.
+SL_SEGMENT_STATUS=empty
+
 # sl_segment_load <name>
-# Sources a segment file once. Returns non-zero if there is no such segment.
+# Sources a segment file once. Sets SL_SEGMENT_STATUS on failure.
 #
 # The name reaches a filesystem path, so it is validated first — a theme is
 # just a text file and `../../etc/passwd` is a legal-looking segment name.
 sl_segment_load() {
   local name=$1
   case "$name" in
-    "" | *[!a-z0-9_]*) return 1 ;;
+    "" | *[!a-z0-9_]*)
+      SL_SEGMENT_STATUS=missing
+      return 1
+      ;;
   esac
 
   if declare -f "segment_${name}" >/dev/null 2>&1; then
     return 0
   fi
 
-  [ -r "${SL_ROOT}/lib/segments/${name}.sh" ] || return 1
-  # shellcheck source=/dev/null
-  . "${SL_ROOT}/lib/segments/${name}.sh" || return 1
+  if [ ! -r "${SL_ROOT}/lib/segments/${name}.sh" ]; then
+    SL_SEGMENT_STATUS=missing
+    return 1
+  fi
 
-  declare -f "segment_${name}" >/dev/null 2>&1
+  # A syntax error in a segment file surfaces here, at source time, not when
+  # the function is called. This is the branch that catches a half-saved edit.
+  # shellcheck source=/dev/null
+  if ! . "${SL_ROOT}/lib/segments/${name}.sh" 2>/dev/null; then
+    SL_SEGMENT_STATUS=broken
+    return 1
+  fi
+
+  if ! declare -f "segment_${name}" >/dev/null 2>&1; then
+    # The file loaded but does not define what it promised.
+    SL_SEGMENT_STATUS=broken
+    return 1
+  fi
+
+  return 0
 }
 
 # sl_segment_render <name>
-# Emits the segment's fragment, or nothing.
+# Sets SL_FRAG to the segment's fragment and SL_SEGMENT_STATUS to the outcome.
 #
-# A failing segment is contained to its own slot: it must not be able to abort
-# the render (AGENTS.md §4.5). This is the one place `|| true` is correct, and
-# the reason is that the alternative is a blank status line.
+# It assigns rather than prints because the caller needs BOTH values, and
+# wrapping this in `$( )` to collect the fragment would run it in a subshell
+# and discard the status. Segments themselves still write to stdout; only this
+# internal boundary uses a variable. As a side effect it removes one fork per
+# segment, which is the cheap half of #8.
+#
+# A failing segment is contained to its own slot: it must never abort the
+# render (AGENTS.md §4.5). Containment is not the same as concealment, so the
+# failure is still reported through SL_SEGMENT_STATUS.
+#
+# Return convention for segment authors:
+#   return 0  — wrote a fragment
+#   return 1  — nothing to show; this is normal and renders as empty
+#   return >1 — something went wrong; renders as a visible marker
 sl_segment_render() {
-  local name=$1 out=""
+  local name=$1 out="" rc=0
+  SL_SEGMENT_STATUS=empty
+  SL_FRAG=""
+
   sl_segment_load "$name" || return 1
-  out=$("segment_${name}" 2>/dev/null) || out=""
-  [ -n "$out" ] || return 1
-  printf '%s' "$out"
+
+  # stderr is discarded because Claude Code hides it anyway, so letting it
+  # through would corrupt nothing but would also help nobody. Under
+  # STATUSLINE_DEBUG it is passed to the real stderr, where `claude --debug`
+  # will show it.
+  if [ -n "${STATUSLINE_DEBUG-}" ]; then
+    out=$("segment_${name}")
+    rc=$?
+  else
+    out=$("segment_${name}" 2>/dev/null)
+    rc=$?
+  fi
+
+  if [ "$rc" -gt 1 ]; then
+    SL_SEGMENT_STATUS=broken
+    return 1
+  fi
+
+  # rc of 1 means "nothing to show" even when the segment printed something
+  # first. A segment that emits a partial fragment and then abandons it has not
+  # decided to show that fragment, and rendering it anyway would contradict the
+  # convention documented directly above — and would silently change behaviour
+  # from the previous `out=$(...) || out=""`, which discarded output on any
+  # non-zero return.
+  if [ "$rc" -ne 0 ] || [ -z "$out" ]; then
+    SL_SEGMENT_STATUS=empty
+    return 1
+  fi
+
+  SL_SEGMENT_STATUS=ok
+  SL_FRAG=$out
+  return 0
 }
 
 # sl_join <separator> <fragment>...
@@ -69,18 +142,28 @@ sl_join() {
 sl_render_line() {
   local -a names=("$@")
   local -a frags=()
-  local sep sep_colored name frag line width columns
+  local sep sep_colored name line width columns
   local -a drop_order=()
 
   sep=${SL_THEME_separator:- | }
   sep_colored=$(sl_paint "${SL_THEME_separator_color:-dim}" "$sep")
 
+  local marker
+  marker=${SL_THEME_error_marker:-?}
   for name in "${names[@]}"; do
-    if frag=$(sl_segment_render "$name"); then
-      frags+=("$frag")
-    else
-      frags+=("")
-    fi
+    # No command substitution here: sl_segment_render assigns SL_FRAG and
+    # SL_SEGMENT_STATUS, and a subshell would discard both.
+    sl_segment_render "$name" || :
+    case "$SL_SEGMENT_STATUS" in
+      ok) frags+=("$SL_FRAG") ;;
+      broken | missing)
+        # sl_scrub as well as the parser-level scrub in lib/theme.sh: this is
+        # the one place a theme-supplied *name* reaches the terminal, and it
+        # also bounds the length so an absurd name cannot blow out the line.
+        frags+=("$(sl_paint "${SL_THEME_error_color:-red}" "${marker}$(sl_scrub "$name" 24)")")
+        ;;
+      *) frags+=("") ;;
+    esac
   done
 
   line=$(sl_join "$sep_colored" "${frags[@]}")
