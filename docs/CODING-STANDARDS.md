@@ -231,6 +231,8 @@ The module contract in this repository is small and MUST be respected:
 - `lib/segments/<name>.sh` exports exactly one function, `segment_<name>`, which writes its
   fragment to stdout and signals its outcome through its exit status. A segment MUST NOT
   know about separators, about other segments, or about the terminal width.
+- `lib/colors.sh` owns every escape sequence. No other file may contain a literal `\033`.
+
 The segment exit status is a three-way signal, not a boolean:
 
 | Status | Meaning | Rendered as |
@@ -244,8 +246,6 @@ nothing to say are both absent from the line, and if they render identically the
 is invisible — degraded state presented as healthy, which §4 forbids. Failure to *load* a segment
 at all (a missing file, a syntax error, a file that does not define the function it promised) is
 treated the same way.
-
-- `lib/colors.sh` owns every escape sequence. No other file may contain a literal `\033`.
 
 A segment reaching around the renderer to emit a separator, or a renderer special-casing one
 segment by name, is a boundary violation and MUST be flagged in review.

@@ -227,3 +227,24 @@ render_raw() {
   esac
   [ -n "$out" ]
 }
+
+@test "regression: a theme file cannot inject escape sequences" {
+  # Two routes, both closed: a control character in an ordinary theme value
+  # (pre-existing, e.g. a screen-clearing separator), and one in a segment
+  # NAME, which only became reachable once unknown segments started rendering
+  # a marker. A theme is data and must never be able to drive the terminal.
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  printf 'name = evil\nline1 = dir \033[31mPWNED\033[0m model\nseparator = "\033[2J\033[H"\ncontext_label = \033[5mB\ncolor = off\n' \
+    >"$themedir/evil.conf"
+
+  local out
+  out=$(COLUMNS=140 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=evil \
+    XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/full.json" 2>/dev/null)
+
+  case "$out" in
+    *$'\033'*) echo "theme injected an escape: $(printf '%q' "$out")"; return 1 ;;
+  esac
+  [ -n "$out" ]
+}

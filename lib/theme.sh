@@ -58,6 +58,16 @@ sl_theme_parse() {
         ;;
     esac
 
+    # Strip control characters from the value.
+    #
+    # A theme is data, and ADR-0001 promises that installing one cannot harm
+    # you. That promise was not actually enforced: theme values are rendered
+    # straight to the terminal, so a `separator` containing ESC [ 2 J cleared
+    # the user's screen on every render, and no theme value legitimately
+    # contains a control character. Scrubbing here fixes the whole class at the
+    # boundary rather than at each of the dozens of places a value is printed.
+    value=${value//[[:cntrl:]]/}
+
     # Allowlist the key shape. This is the check that makes `printf -v` on a
     # file-supplied name safe: without it, a key of `PATH` or `SL_FIELDS[0]`
     # would overwrite shell state.

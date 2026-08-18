@@ -151,7 +151,10 @@ sl_render_line() {
     case "$SL_SEGMENT_STATUS" in
       ok) frags+=("$SL_FRAG") ;;
       broken | missing)
-        frags+=("$(sl_paint "${SL_THEME_error_color:-red}" "${marker}${name}")")
+        # sl_scrub as well as the parser-level scrub in lib/theme.sh: this is
+        # the one place a theme-supplied *name* reaches the terminal, and it
+        # also bounds the length so an absurd name cannot blow out the line.
+        frags+=("$(sl_paint "${SL_THEME_error_color:-red}" "${marker}$(sl_scrub "$name" 24)")")
         ;;
       *) frags+=("") ;;
     esac
