@@ -41,7 +41,7 @@ review_cycle: "quarterly"
 | Failure | MUST degrade to a usable line. Never emit a traceback, never emit nothing |
 | Input | stdin JSON is untrusted. Every field MAY be absent, null, or the wrong type |
 | Shell | `bash` 3.2+ compatible, `set -euo pipefail`, `shellcheck` clean at default severity |
-| Dependencies | `bash`, `jq`, `git` only. Adding a fourth requires an ADR |
+| Dependencies | Runtime: `bash` and `jq`. Development also needs `git`. Adding any requires an ADR |
 | Testing | Every segment MUST have a fixture + golden test. Bug fixes MUST add a regression fixture |
 | Secrets | No paths, hostnames, tokens, or usernames baked into committed files or fixtures |
 | Changes | Plan before execute (proportional), verify before done, no silent failures |
@@ -123,7 +123,7 @@ The agent MUST NOT invent parallel directories for these roles.
 ### 3.2 Requires Explicit Approval
 
 - Modifying the user's `~/.claude/settings.json` or anything else outside this repository.
-- Adding a runtime dependency beyond `bash`, `jq`, and `git`.
+- Adding a runtime dependency beyond `bash` and `jq`.
 - Pushing to `main`, force-pushing anything, or merging a pull request.
 - Deleting or rewriting fixtures and golden files (as opposed to adding to them).
 - Any change to the release or install path that users would fetch.
@@ -248,9 +248,20 @@ and appear in the payload. The agent MUST:
 
 ### 5.3 Dependencies
 
-`bash`, `jq`, and `git`. That is the complete list.
+**Runtime: `bash` and `jq`.** That is the complete list for running the status line.
 
-Adding a fourth requires an ADR (§10.1) that establishes the dependency is present by default
+`git` is a **development** dependency, not a runtime one. The engine never invokes the `git`
+binary — it reads `.git/HEAD` off the filesystem, which is a file read, not a process spawn
+(`docs/adr/0002-no-git-subprocess.md`). The git segment therefore works on a machine with no git
+installed at all, and renders nothing when there is no repository. You need `git` to clone this
+repository and contribute to it, which is a different requirement.
+
+This distinction was stated three different ways in three places before an outside contributor's
+pull request made the disagreement visible: this section listed git as a dependency, `README.md`
+said it "is not required at render time and is never invoked", and `scripts/setup.sh` reported it
+under development dependencies. The script and the README were right.
+
+Adding any further dependency requires an ADR (§10.1) that establishes it is present by default
 on both macOS and mainstream Linux, or that the feature degrades cleanly to nothing when it is
 absent. Optional integrations (for example, a plugin reading another tool's state file) MUST
 be off by default and MUST NOT be a load-bearing part of any shipped theme other than their own.
