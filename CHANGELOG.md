@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1](https://github.com/williamzujkowski/statuslines/compare/v0.2.0...v0.2.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* **install:** separate runtime and development hints ([#39](https://github.com/williamzujkowski/statuslines/issues/39)) ([837ecd9](https://github.com/williamzujkowski/statuslines/commit/837ecd92d06374da9c885ce877f331582e925a95))
+
+
+### Documentation
+
+* classify git as a development dependency, not a runtime one ([#40](https://github.com/williamzujkowski/statuslines/issues/40)) ([715258e](https://github.com/williamzujkowski/statuslines/commit/715258e00a41aca86632cb4466c40ada5012027e))
+
 ## [0.2.0](https://github.com/williamzujkowski/statuslines/compare/v0.1.0...v0.2.0) (2026-08-18)
 
 
