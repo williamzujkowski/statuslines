@@ -130,6 +130,12 @@ jobs:
     steps:
       # The PR title becomes the squashed commit subject that release-please
       # reads for the version bump, so this is the authoritative check.
+      #
+      # `main` is in the scope list for release-please's own PRs, which it
+      # titles `chore(main): release X.Y.Z` after the release branch. Without it
+      # every release PR fails this check — cosmetic, since the check is not
+      # required for merge, but a permanently red check trains people to ignore
+      # red checks.
       - uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,6 +164,7 @@ jobs:
             ci
             bench
             deps
+            main
           requireScope: false
           subjectPattern: ^(?![A-Z]).+[^.]$
           subjectPatternError: |
