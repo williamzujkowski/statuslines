@@ -5,7 +5,8 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 ok=0
-missing=()
+runtime_missing=()
+dev_missing=()
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -15,7 +16,7 @@ for tool in bash jq; do
     printf '  \033[32m✓\033[0m %-12s %s\n' "$tool" "$(command -v "$tool")"
   else
     printf '  \033[31m✗\033[0m %-12s missing\n' "$tool"
-    missing+=("$tool")
+    runtime_missing+=("$tool")
     ok=1
   fi
 done
@@ -29,7 +30,7 @@ for tool in git shellcheck shfmt bats; do
     printf '  \033[32m✓\033[0m %-12s %s\n' "$tool" "$(command -v "$tool")"
   else
     printf '  \033[33m!\033[0m %-12s missing - make check will fail\n' "$tool"
-    missing+=("$tool")
+    dev_missing+=("$tool")
   fi
 done
 
@@ -38,14 +39,25 @@ if [ -d .git ]; then
   printf '\n\033[32m✓\033[0m installed .git/hooks/commit-msg (Conventional Commits)\n'
 fi
 
-if [ ${#missing[@]} -gt 0 ]; then
+if [ ${#runtime_missing[@]} -gt 0 ]; then
   cat <<HINT
 
-Install the missing tools:
+Install the missing runtime tools:
 
-  macOS:   brew install ${missing[*]}
-  Debian:  sudo apt-get install -y ${missing[*]}
-  Arch:    sudo pacman -S ${missing[*]}
+  macOS:   brew install ${runtime_missing[*]}
+  Debian:  sudo apt-get install -y ${runtime_missing[*]}
+  Arch:    sudo pacman -S ${runtime_missing[*]}
+HINT
+fi
+
+if [ ${#dev_missing[@]} -gt 0 ]; then
+  cat <<HINT
+
+Install the missing development tools:
+
+  macOS:   brew install ${dev_missing[*]}
+  Debian:  sudo apt-get install -y ${dev_missing[*]}
+  Arch:    sudo pacman -S ${dev_missing[*]}
 
 (bats may be packaged as bats-core; shfmt lives in the go-shfmt/shfmt package.)
 HINT
