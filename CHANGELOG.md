@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/williamzujkowski/statuslines/compare/v0.2.1...v0.3.0) (2026-08-20)
+
+
+### Features
+
+* **themes:** add the instrument theme and the design rules behind it ([#45](https://github.com/williamzujkowski/statuslines/issues/45)) ([3284df3](https://github.com/williamzujkowski/statuslines/commit/3284df37ca6ec87923c50dcf627e3bf49e410ef7))
+
 ## [0.2.1](https://github.com/williamzujkowski/statuslines/compare/v0.2.0...v0.2.1) (2026-08-19)
 
 
