@@ -461,3 +461,46 @@ render_raw() {
   [[ "$out" != *'!!'* ]] || { echo "ctx 80% rendered as critical: $out"; return 1; }
   [[ "$out" == *'!'* ]] || { echo "ctx 80% carried no watch marker: $out"; return 1; }
 }
+
+@test "both glyphs of a bar share an East-Asian width class" {
+  # A bar that pairs an Ambiguous glyph with a Neutral one changes physical
+  # length as the value moves, on any terminal configured to treat ambiguous
+  # characters as wide (iTerm2's "treat ambiguous-width as double-width", or a
+  # CJK locale). The filled cells become two columns while the empty cells stay
+  # one, so every field to the right of the bar slides as the number changes.
+  #
+  # The width classes are hardcoded rather than computed so this test needs no
+  # tooling beyond bash: the shipped themes may only draw from these sets.
+  local ambiguous='━─│┃█▒▓●○■□◆'
+  local neutral='╌╍░▏▐▰▱▮▯∙'
+  local ascii='#.-=*+_ |'
+
+  local conf full empty class_full class_empty
+  for conf in "${SL_REPO}"/themes/*.conf; do
+    full=$(sed -n 's/^context_bar_full[[:space:]]*=[[:space:]]*"\?\(.\)"\?.*/\1/p' "$conf")
+    empty=$(sed -n 's/^context_bar_empty[[:space:]]*=[[:space:]]*"\?\(.\)"\?.*/\1/p' "$conf")
+    [ -n "$full" ] && [ -n "$empty" ] || continue
+
+    class_of() {
+      case "$ambiguous" in *"$1"*) printf 'ambiguous'; return ;; esac
+      case "$neutral" in *"$1"*) printf 'neutral'; return ;; esac
+      case "$ascii" in *"$1"*) printf 'ascii'; return ;; esac
+      printf 'unknown'
+    }
+    class_full=$(class_of "$full")
+    class_empty=$(class_of "$empty")
+
+    [ "$class_full" != "unknown" ] || {
+      echo "${conf##*/}: bar glyph '$full' is not in the approved set"
+      return 1
+    }
+    [ "$class_empty" != "unknown" ] || {
+      echo "${conf##*/}: bar glyph '$empty' is not in the approved set"
+      return 1
+    }
+    [ "$class_full" = "$class_empty" ] || {
+      echo "${conf##*/}: '$full' is $class_full but '$empty' is $class_empty — the bar will change length"
+      return 1
+    }
+  done
+}

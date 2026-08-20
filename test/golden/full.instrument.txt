@@ -1,1 +1,1 @@
-statuslines[2m  [0mOpus fast                                                                   [2mctx [0m63% ━━━━━━╌╌╌╌[2m  [0m$3.42
+statuslines[2m  [0mOpus fast                                                             [2mctx [0m63% ━━━━━━────[2m  [0m$3.42

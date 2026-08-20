@@ -1,1 +1,1 @@
-[34m.../projects/statuslines[0m[2m  [0m[35mOpus[0m [36mfast[0m[2m  [0m[2mctx [0m63% ██████░░░░[2m  [0m$3.42[2m  [0m[36m1h10m[0m
+[34m.../projects/statuslines[0m[2m  [0m[35mOpus[0m [36mfast[0m[2m  [0m[2mctx [0m63% ██████▒▒▒▒[2m  [0m$3.42[2m  [0m[36m1h10m[0m

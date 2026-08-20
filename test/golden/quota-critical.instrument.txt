@@ -1,1 +1,1 @@
-proj[2m  [0mOpus                          [2mctx [0m[1m[31m92%!![0m[0m [1m[31m━━━━━━━━━╌[0m[0m[2m  [0m[2m5h [0m[33m94%![0m [2mresets 1h[0m [2m7d [0m[33m81%![0m [2mresets 5d[0m [33mover pace 66%[0m[2m  [0m  $41
+proj[2m  [0mOpus                    [2mctx [0m[1m[31m92%!![0m[0m [1m[31m━━━━━━━━━─[0m[0m[2m  [0m[2m5h [0m[33m94%![0m [2mresets 1h[0m [2m7d [0m[33m81%![0m [2mresets 5d[0m [33mover pace 66%[0m[2m  [0m  $41

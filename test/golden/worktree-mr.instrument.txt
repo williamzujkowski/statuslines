@@ -1,1 +1,1 @@
-feature-x[2m  [0mfeature/x +wt[2m  [0mSonnet                                                         [2mctx [0m22% ━━╌╌╌╌╌╌╌╌[2m  [0m$0.90
+feature-x[2m  [0mfeature/x +wt[2m  [0mSonnet                                                   [2mctx [0m22% ━━────────[2m  [0m$0.90
