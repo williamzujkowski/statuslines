@@ -47,7 +47,8 @@ _sl_ratelimit_window() {
 
   [ "$lead" -eq 1 ] && printf ' '
 
-  state=$(sl_state "$pct" "${SL_THEME_ratelimit_warn:-70}" "${SL_THEME_ratelimit_crit:-90}")
+  sl_threshold_default ratelimit_crit
+  state=$(sl_state "$pct" "${SL_THEME_ratelimit_warn:-70}" "$_SL_THRESHOLD_VALUE")
   state=$(sl_state_cap "$prefix" "$state")
   marker=$(sl_state_marker "$state")
 

@@ -26,7 +26,8 @@ segment_context() {
   [ "$pct" -lt 0 ] && pct=0
   [ "$pct" -gt 100 ] && pct=100
 
-  state=$(sl_state "$pct" "${SL_THEME_context_warn:-70}" "${SL_THEME_context_crit:-90}")
+  sl_threshold_default context_crit
+  state=$(sl_state "$pct" "${SL_THEME_context_warn:-70}" "$_SL_THRESHOLD_VALUE")
   state=$(sl_state_cap context "$state")
   marker=$(sl_state_marker "$state")
 

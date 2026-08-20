@@ -116,6 +116,24 @@ setup() {
   [ "$(sl_threshold_color 90 60 85)" = "red" ]
 }
 
+@test "critical thresholds use one shared resolver" {
+  unset SL_THEME_context_crit SL_THEME_ratelimit_crit
+  sl_threshold_default context_crit
+  [ "$_SL_THRESHOLD_VALUE" = "90" ]
+  sl_threshold_default ratelimit_crit
+  [ "$_SL_THRESHOLD_VALUE" = "90" ]
+
+  SL_THEME_context_crit=85
+  SL_THEME_ratelimit_crit=95
+  sl_threshold_default context_crit
+  [ "$_SL_THRESHOLD_VALUE" = "85" ]
+  sl_threshold_default ratelimit_crit
+  [ "$_SL_THRESHOLD_VALUE" = "95" ]
+
+  run sl_threshold_default unknown
+  [ "$status" -ne 0 ]
+}
+
 @test "sl_now is injectable for determinism" {
   SL_NOW=1700000000
   [ "$(sl_now)" = "1700000000" ]

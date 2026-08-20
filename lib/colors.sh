@@ -197,6 +197,22 @@ sl_state() {
   fi
 }
 
+# sl_threshold_default <name>
+# Resolves a shared critical threshold for both segment rendering and owner
+# selection. Keep the names allowlisted because the result is used in numeric
+# comparisons on every render. Sets _SL_THRESHOLD_VALUE to avoid a fork at
+# each call site.
+sl_threshold_default() {
+  case "$1" in
+    context_crit) _SL_THRESHOLD_VALUE=${SL_THEME_context_crit:-90} ;;
+    ratelimit_crit) _SL_THRESHOLD_VALUE=${SL_THEME_ratelimit_crit:-90} ;;
+    *)
+      _SL_THRESHOLD_VALUE=""
+      return 1
+      ;;
+  esac
+}
+
 # sl_crit_owner
 #
 # Which single metric is allowed to render as critical this frame.
@@ -230,7 +246,11 @@ _sl_segment_active() {
 }
 
 sl_crit_owner() {
-  local v
+  local v context_crit ratelimit_crit
+  sl_threshold_default context_crit
+  context_crit=$_SL_THRESHOLD_VALUE
+  sl_threshold_default ratelimit_crit
+  ratelimit_crit=$_SL_THRESHOLD_VALUE
   # The owner must be a segment that is actually rendered. Awarding the slot to
   # an absent segment silently downgrades the one metric the user CAN see: a
   # theme without a context segment, with context critical, would cap a
@@ -239,21 +259,21 @@ sl_crit_owner() {
   # one layer up.
   if _sl_segment_active context && sl_numeric ctx_pct; then
     v=$(sl_num ctx_pct 0)
-    [ "$v" -ge "${SL_THEME_context_crit:-90}" ] && {
+    [ "$v" -ge "$context_crit" ] && {
       printf 'context'
       return 0
     }
   fi
   if _sl_segment_active ratelimit && sl_has rl5_pct; then
     v=$(sl_num rl5_pct 0)
-    [ "$v" -ge "${SL_THEME_ratelimit_crit:-90}" ] && {
+    [ "$v" -ge "$ratelimit_crit" ] && {
       printf 'rl5'
       return 0
     }
   fi
   if _sl_segment_active ratelimit && sl_has rl7_pct; then
     v=$(sl_num rl7_pct 0)
-    [ "$v" -ge "${SL_THEME_ratelimit_crit:-90}" ] && {
+    [ "$v" -ge "$ratelimit_crit" ] && {
       printf 'rl7'
       return 0
     }
