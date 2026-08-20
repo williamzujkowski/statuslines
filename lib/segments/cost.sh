@@ -23,5 +23,5 @@ segment_cost() {
     out=$(printf '$%.2f' "$raw" 2>/dev/null) || out="\$0"
   fi
 
-  sl_paint "${SL_THEME_cost_color:-none}" "$(printf '%*s' "${SL_THEME_cost_width:-0}" "$out")"
+  sl_paint "${SL_THEME_cost_color:-none}" "$(printf '%*s' "$(sl_theme_int cost_width 0 40)" "$out")"
 }

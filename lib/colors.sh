@@ -215,23 +215,43 @@ sl_state() {
 # Priority is severity of consequence: running out of context ends the session,
 # a spent five-hour window blocks the next few hours, the weekly window is the
 # slowest to bite.
+# _sl_segment_active <name> — is this segment in any line the theme declares?
+#
+# SL_ACTIVE_SEGMENTS is set by sl_render before any segment runs, and a
+# variable set before a command substitution IS visible inside it, so this
+# works from within a segment.
+_sl_segment_active() {
+  case " ${SL_ACTIVE_SEGMENTS-} " in
+    *" $1 "*) return 0 ;;
+  esac
+  # Unset means nobody declared a layout — assume everything is live rather
+  # than silently suppressing every critical.
+  [ -z "${SL_ACTIVE_SEGMENTS+x}" ]
+}
+
 sl_crit_owner() {
   local v
-  if sl_numeric ctx_pct; then
+  # The owner must be a segment that is actually rendered. Awarding the slot to
+  # an absent segment silently downgrades the one metric the user CAN see: a
+  # theme without a context segment, with context critical, would cap a
+  # critical rate limit to a watch and show no critical marker anywhere. That
+  # is the same fail-silent shape as the threshold mismatch fixed earlier,
+  # one layer up.
+  if _sl_segment_active context && sl_numeric ctx_pct; then
     v=$(sl_num ctx_pct 0)
     [ "$v" -ge "${SL_THEME_context_crit:-90}" ] && {
       printf 'context'
       return 0
     }
   fi
-  if sl_has rl5_pct; then
+  if _sl_segment_active ratelimit && sl_has rl5_pct; then
     v=$(sl_num rl5_pct 0)
     [ "$v" -ge "${SL_THEME_ratelimit_crit:-90}" ] && {
       printf 'rl5'
       return 0
     }
   fi
-  if sl_has rl7_pct; then
+  if _sl_segment_active ratelimit && sl_has rl7_pct; then
     v=$(sl_num rl7_pct 0)
     [ "$v" -ge "${SL_THEME_ratelimit_crit:-90}" ] && {
       printf 'rl7'

@@ -34,11 +34,11 @@ segment_context() {
   # Percent padded to a fixed width so the fields to its right keep their
   # column as the value moves. A number that shifts its neighbours on every
   # render cannot be found by position, only by reading.
-  sl_state_paint "$state" "$(printf '%*d%%%s' "${SL_THEME_pct_width:-0}" "$pct" "$marker")"
+  sl_state_paint "$state" "$(printf '%*d%%%s' "$(sl_theme_int pct_width 0 10)" "$pct" "$marker")"
 
   if [ "${SL_THEME_context_bar:-0}" = "1" ]; then
     printf ' '
-    sl_state_paint "$state" "$(_sl_bar "$pct" "${SL_THEME_context_bar_width:-10}" \
+    sl_state_paint "$state" "$(_sl_bar "$pct" "$(sl_theme_int context_bar_width 10 60)" \
       "${SL_THEME_context_bar_full:-#}" "${SL_THEME_context_bar_empty:-.}")"
   fi
 

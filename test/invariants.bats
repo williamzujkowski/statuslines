@@ -504,3 +504,64 @@ render_raw() {
     }
   done
 }
+
+@test "regression: no stray space when a quota window is floor-suppressed" {
+  # The inter-window separator used to be printed before the 7-day window had
+  # decided whether it would render at all. With the instrument theme's
+  # show_above floor, the common state — five-hour window hot, weekly window
+  # quiet — left a stray column in the middle of the line.
+  local out
+  out=$(jq '.rate_limits.five_hour.used_percentage=75
+            | .rate_limits.seven_day.used_percentage=40' "${SL_REPO}/test/fixtures/full.json" |
+    COLUMNS=200 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=instrument \
+      HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+
+  [[ "$out" != *"   \$"* ]] || { echo "stray space before the cost field: $out"; return 1; }
+  [[ "$out" == *"5h 75%"* ]] || { echo "the five-hour window did not render: $out"; return 1; }
+  [[ "$out" != *"7d"* ]] || { echo "the weekly window rendered below its floor: $out"; return 1; }
+}
+
+@test "a hostile theme cannot hang the render through a printf field width" {
+  # Theme files are untrusted data by design (ADR-0001). A value reaching a
+  # printf star-width is not just wrong when it is garbage, it is a denial of
+  # service: cost_width = 40000000 made bash build a forty-megabyte pad and the
+  # render timed out with no output at all. Digit-checking is not enough; the
+  # magnitude has to be capped.
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  printf 'name = hostile\nline1 = context cost\ncost_width = 40000000\npct_width = 999999\ncontext_bar = 1\ncontext_bar_width = 500000\ncolor = off\n' \
+    >"$themedir/hostile.conf"
+
+  local out
+  run timeout 10 env COLUMNS=200 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=hostile \
+    HOME="${BATS_TEST_TMPDIR}/home" XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/full.json"
+
+  [ "$status" -eq 0 ] || { echo "render did not complete (status $status)"; return 1; }
+  [ -n "$output" ] || { echo "render produced nothing"; return 1; }
+  [ "${#output}" -lt 500 ] || { echo "render produced ${#output} bytes"; return 1; }
+}
+
+@test "the critical slot goes to a segment the theme actually renders" {
+  # Awarding the slot to an absent segment silently downgrades the one metric
+  # the user CAN see. A theme with no context segment, with context critical,
+  # used to cap a critical rate limit to a watch and show no critical marker
+  # anywhere — the same fail-silent shape as the threshold mismatch, one layer
+  # up.
+  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
+  mkdir -p "$themedir"
+  printf 'name = rlonly\nline1 = ratelimit\nratelimit_show_above = 0\ncolor = off\n' \
+    >"$themedir/rlonly.conf"
+
+  local out
+  out=$(jq '.context_window.used_percentage=95
+            | .rate_limits.five_hour.used_percentage=95' "${SL_REPO}/test/fixtures/full.json" |
+    COLUMNS=200 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=rlonly \
+      HOME="${BATS_TEST_TMPDIR}/home" XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+      "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+
+  [[ "$out" == *'!!'* ]] || {
+    echo "the only rendered critical metric did not render as critical: $out"
+    return 1
+  }
+}

@@ -4,9 +4,10 @@
 # Per-response, not cumulative (Claude Code 2.1.132 changed this), so they
 # describe the last turn rather than the session.
 #
-# A value under a thousand renders as a dash, not as "0k". A credible zero in
-# place of an unknown is the failure mode users do not notice, which is exactly
-# why it has to look different from a real zero.
+# Zero renders as a dash, not as "0k". A credible zero standing in for an
+# unknown is the failure mode users do not notice, which is exactly why it has
+# to look different. A count between one and nine hundred renders as itself —
+# that is a real measurement, and rounding it to "0k" was the original bug.
 segment_tokens() {
   local in_t out_t in_s out_s unk
   in_t=$(sl_int ctx_in 0)

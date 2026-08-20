@@ -15,19 +15,26 @@
 segment_ratelimit() {
   local shown=0
   if sl_has rl5_pct; then
-    _sl_ratelimit_window rl5 "${SL_THEME_ratelimit_5h_label:-5h}" 300 && shown=1
+    _sl_ratelimit_window rl5 "${SL_THEME_ratelimit_5h_label:-5h}" 300 0 && shown=1
   fi
   if [ "${SL_THEME_ratelimit_show_7d:-0}" = "1" ] && sl_has rl7_pct; then
-    [ "$shown" -eq 1 ] && printf ' '
-    _sl_ratelimit_window rl7 "${SL_THEME_ratelimit_7d_label:-7d}" 10080 && shown=1
+    # The separator is passed in rather than printed here, because the window
+    # can still decline to render at the show_above floor — and the common
+    # state is exactly that: the five-hour window hot while the weekly one is
+    # quiet. Printing the space first left a stray column in the line.
+    _sl_ratelimit_window rl7 "${SL_THEME_ratelimit_7d_label:-7d}" 10080 "$shown" && shown=1
   fi
   [ "$shown" -eq 1 ] || return 1
   return 0
 }
 
-# _sl_ratelimit_window <field_prefix> <label> <window_minutes>
+# _sl_ratelimit_window <field_prefix> <label> <window_minutes> <lead_space>
+#
+# Emits nothing at all when the value is below the show_above floor, including
+# the leading separator — the caller cannot know in advance whether this window
+# will render.
 _sl_ratelimit_window() {
-  local prefix=$1 label=$2 window_min=$3
+  local prefix=$1 label=$2 window_min=$3 lead=${4:-0}
   local pct reset now remaining state marker floor
 
   pct=$(sl_num "${prefix}_pct" 0)
@@ -37,6 +44,8 @@ _sl_ratelimit_window() {
   floor=${SL_THEME_ratelimit_show_above:-0}
   case "$floor" in '' | *[!0-9]*) floor=0 ;; esac
   [ "$pct" -ge "$floor" ] || return 1
+
+  [ "$lead" -eq 1 ] && printf ' '
 
   state=$(sl_state "$pct" "${SL_THEME_ratelimit_warn:-70}" "${SL_THEME_ratelimit_crit:-90}")
   state=$(sl_state_cap "$prefix" "$state")

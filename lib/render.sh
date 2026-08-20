@@ -387,6 +387,18 @@ sl_render_line() {
 sl_render() {
   local n=1 spec out first=1
 
+  # Collect every segment the theme declares, across all lines, before any of
+  # them render. sl_crit_owner needs this to avoid awarding the critical slot
+  # to a segment that is not on screen.
+  SL_ACTIVE_SEGMENTS=""
+  local scan=1 sspec
+  while [ "$scan" -le 9 ]; do
+    sspec=$(sl_theme_get "line${scan}" '')
+    scan=$((scan + 1))
+    [ -n "$sspec" ] || continue
+    SL_ACTIVE_SEGMENTS="${SL_ACTIVE_SEGMENTS} ${sspec}"
+  done
+
   if [ "${SL_DEGRADED:-0}" -eq 1 ]; then
     printf '%s' "$(sl_paint red "statusline degraded")"
     printf '%s' "$(sl_paint dim ": ${SL_DEGRADED_REASON:-unknown}")"
