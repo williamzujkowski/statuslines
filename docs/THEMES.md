@@ -24,6 +24,64 @@ Where this document disagrees with either, they win and this file is the bug.
 
 ---
 
+## 0. Design rules
+
+The shipped `instrument` theme follows three rules. They are not house style —
+each one is there because the alternative measurably fails, and a theme that
+breaks them should do so deliberately.
+
+### Position encodes category; colour encodes state
+
+You already know the second field is the branch, because it is always the
+second field. Colouring it as well spends a scarce channel restating what the
+layout said for free.
+
+The cost is not merely redundancy. Pop-out — the thing that makes one item
+leap out of a line without being read — requires the item to be *unique* in
+some visual dimension. With five hues already on the line, the one value that
+has actually left its band is no longer unique, so finding it becomes a serial
+search across the whole line rather than a glance. Hue variation also measurably
+degrades reading of the glyphs sharing the line with it.
+
+Set `quiet = 1` and set the `*_color` keys to `none` to opt into this.
+
+### Normal is silent
+
+`ratelimit_show_above = 70` makes the quota fields render **nothing** while
+consumption is comfortable. A field that reads `0%` all day teaches the eye to
+skip that region, and it will still be skipped on the day it reads `94%`.
+
+Aircraft annunciators, vehicle telltales and process-control HMIs all converge
+on the same rule — the indicator is absent when normal — because the appearance
+of the field is a stronger signal than any styling of it. It is also the only
+signal that survives every accessibility mode at once.
+
+### Colour is the last channel, never the first
+
+A value escalates through **text**, then **weight**, then **position**, and only
+then hue:
+
+| State | Renders as | Channels carrying it |
+|---|---|---|
+| normal | `ctx 63%` | — |
+| watch | `ctx 78%!` | marker, yellow |
+| critical | `ctx 93%!!` | marker, bold, red |
+
+In a 16-colour terminal the palette belongs to the user's theme: `red` may sit
+close to `yellow` in it, and red/green deficiency affects roughly 8% of men.
+Hue cannot be the primary carrier. The marker is what a colourblind reader, a
+`NO_COLOR` reader and a screen reader all actually get, and `test/invariants.bats`
+asserts the three states differ in **text** with colour stripped.
+
+At most one field may render critical per frame; the rest degrade to watch.
+Three red tokens are worth less than one, for the same reason an alarm flood is
+worth less than an alarm.
+
+**Green is unused.** Under "normal is silent" there is nothing for it to mean,
+and keeping it out of rotation means red is never adjacent to green.
+
+---
+
 ## 1. File format
 
 `key = value`, one per line. `#` starts a comment and runs to end of line. Blank lines are
@@ -153,6 +211,26 @@ a user segment degrades visibly on a machine that does not.
 
 ## 3. Segments
 
+### The `spacer` pseudo-segment
+
+`spacer` is not a segment — it is a flexible gap. Everything after it is pushed
+toward the right edge, up to `max_width`:
+
+```
+line1 = dir git model spacer context ratelimit cost
+```
+
+This puts identity on the left and volatile state on the right, which is the
+layout every well-regarded status bar converges on (tmux `status-right`,
+lualine's `X/Y/Z`, the macOS menu bar). The point is not symmetry: it is that
+the state cluster lands in the **same place on every render**, so it can be
+found with one planned eye movement instead of by reading the line.
+
+A spacer takes no separator on either side — the gap is the separator. On a
+narrow terminal it collapses to a single space, so a tiled window degrades to
+an ordinary spaced line rather than overflowing. Multiple spacers share the
+leftover width evenly.
+
 One file per segment in `lib/segments/`, each exporting exactly one `segment_<name>` function.
 A segment writes its fragment to stdout and returns `1` to mean "nothing to show" — which is a
 normal state, not an error. Segments named in a `line<N>` key that do not exist are skipped.
@@ -236,6 +314,15 @@ theme can describe itself to a human and to `make demo`.
 | `error_marker` | `?` | Prefix for the marker shown in place of a segment that is broken or that the theme names but does not exist. The segment name follows it, so a broken `cost` renders as `?cost` |
 | `error_color` | `red` | Color for that marker. The marker is text, so it stays legible with color off |
 
+| `max_width` | `0` | Hard cap on the columns the line may use, independent of `COLUMNS`. `0` means no cap. A wider terminal is not a more readable one: past roughly 120 columns extra width buys eye movement and nothing else |
+| `quiet` | `0` | `1` suppresses the in-band colour on every threshold value, so colour appears only at watch and critical |
+| `state_watch_color` | `yellow` | Colour for a value that has left its normal band |
+| `state_crit_color` | `red` | Colour for a value that needs action now |
+| `state_watch_marker` | `!` | Colour-free marker appended at watch |
+| `state_crit_marker` | `!!` | Colour-free marker appended at critical. Escalation by repetition reads as intensity without a legend |
+| `unknown_glyph` | `--` | Rendered where a value is genuinely unknown, so it never looks like a measured zero |
+| `pct_width` | `0` | Pad percentages to this width. Non-zero keeps the fields to the right from shifting as the value moves |
+
 ### 4.3 Global
 
 | Key | Default | Meaning |
@@ -286,6 +373,12 @@ theme can describe itself to a human and to `make demo`.
 | `ratelimit_warn` | `70` | Percent at which quota turns yellow |
 | `ratelimit_crit` | `90` | Percent at which quota turns red |
 | `pr_color` | `blue` | Used only when the review state is absent or unrecognized. `approved`, `changes_requested`, `pending`, and `draft` set green, red, yellow, and dim respectively and are not configurable |
+| `ratelimit_show_above` | `0` | Quota renders nothing below this percentage. `70` gives the dark-cockpit behaviour: the field appearing is itself the alert |
+| `ratelimit_pace_threshold` | `15` | Off-pace is reported only when consumption exceeds elapsed share of the window by this much. An "on pace" indicator every render is noise |
+| `cost_width` | `0` | Pad the cost to this width so its neighbours keep their column as the value changes |
+| `model_short` | `0` | `1` drops a trailing parenthetical from the model name, e.g. `Opus 5 (1M context)` → `Opus 5`. The `ctx+` label already says the window is extended |
+| `context_200k_mark` | `1` | `0` hides the `200k+` marker. It is a constant, and a constant pays rent on every render |
+| `context_extended_mark` | `1` | `0` stops the context label gaining a `+` on an extended-context model |
 
 The `cache`, `api`, and `vim` segments read no theme keys. Their thresholds and mode colors are
 fixed. Per `docs/CODING-STANDARDS.md` §6.2, a key does not ship until a shipped theme uses it, so

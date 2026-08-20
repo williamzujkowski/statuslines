@@ -330,3 +330,100 @@ render_raw() {
   [[ "$out" != *"?zzpartial"* ]] || { echo "return 1 was treated as failure: $out"; return 1; }
   [ -n "$out" ]
 }
+
+@test "state is carried by text, not only by colour (WCAG 1.4.1)" {
+  # The load-bearing accessibility guarantee. In a 16-colour terminal the
+  # palette belongs to the user's theme, so the warn/critical axis cannot be
+  # made safe with hue; the marker is what a colourblind user, a NO_COLOR user
+  # and a screen reader all actually get.
+  local seen=""
+  local pct out
+  for pct in 50 78 93; do
+    out=$(jq --argjson p "$pct" '.context_window.used_percentage=$p' \
+      "${SL_REPO}/test/fixtures/full.json" |
+      COLUMNS=140 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=instrument \
+        HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+    case "$out" in
+      *$'\033'*) echo "NO_COLOR still emitted an escape"; return 1 ;;
+    esac
+    seen="${seen}|${out}"
+  done
+
+  local a b c
+  a=${seen#|}; a=${a%%|*}
+  b=${seen#*|}; b=${b#*|}; b=${b%%|*}
+  c=${seen##*|}
+  [ "$a" != "$b" ] || { echo "normal and watch are identical without colour: $a"; return 1; }
+  [ "$b" != "$c" ] || { echo "watch and critical are identical without colour: $b"; return 1; }
+  [[ "$b" == *'!'* ]] || { echo "watch carries no marker: $b"; return 1; }
+  [[ "$c" == *'!!'* ]] || { echo "critical carries no marker: $c"; return 1; }
+}
+
+@test "at most one critical token per render" {
+  # Pop-out needs the alarming thing to be unique. Two reds are worth less than
+  # one, so a second critical degrades to a watch.
+  local out
+  out=$(jq '.context_window.used_percentage=95
+            | .rate_limits.five_hour.used_percentage=97
+            | .rate_limits.seven_day.used_percentage=98' "${SL_REPO}/test/fixtures/full.json" |
+    COLUMNS=200 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=instrument \
+      HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+
+  local count=${out//[!!]/}
+  # Three criticals would be six '!' characters; one critical plus two watches
+  # is four.
+  [ "${#count}" -le 4 ] || {
+    echo "more than one critical token rendered: $out"
+    return 1
+  }
+}
+
+@test "quota stays silent while it is comfortable" {
+  # Dark cockpit: the field is absent when normal, so its appearance is itself
+  # the signal.
+  local quiet loud
+  quiet=$(jq '.rate_limits.five_hour.used_percentage=20
+              | .rate_limits.seven_day.used_percentage=10' "${SL_REPO}/test/fixtures/full.json" |
+    COLUMNS=160 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=instrument \
+      HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+  loud=$(jq '.rate_limits.five_hour.used_percentage=94
+             | .rate_limits.seven_day.used_percentage=10' "${SL_REPO}/test/fixtures/full.json" |
+    COLUMNS=160 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=instrument \
+      HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+
+  [[ "$quiet" != *"5h"* ]] || { echo "quota shown while comfortable: $quiet"; return 1; }
+  [[ "$loud" == *"5h"* ]] || { echo "quota hidden while critical: $loud"; return 1; }
+}
+
+@test "max_width caps the line however wide the terminal is" {
+  local w out
+  for w in 400 300 210 160; do
+    out=$(COLUMNS=$w SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=instrument \
+      HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" \
+      <"${SL_REPO}/test/fixtures/full.json" 2>/dev/null)
+    [ "${#out}" -le 120 ] || { echo "line is ${#out} wide at COLUMNS=$w, cap is 120"; return 1; }
+  done
+}
+
+@test "the spacer collapses instead of overflowing on a narrow terminal" {
+  local w out
+  for w in 60 52 40 30 20; do
+    out=$(COLUMNS=$w SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=instrument \
+      HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" \
+      <"${SL_REPO}/test/fixtures/full.json" 2>/dev/null)
+    [ -n "$out" ] || { echo "empty render at COLUMNS=$w"; return 1; }
+    [ "${#out}" -le "$w" ] || { echo "overflow at COLUMNS=$w: ${#out} chars"; return 1; }
+  done
+}
+
+@test "unknown renders as a dash, never as a credible zero" {
+  # An output-token count below a thousand used to render as "0k", which reads
+  # as measured-and-zero rather than as too-small-to-show.
+  local out
+  out=$(jq '.context_window.total_output_tokens=0
+            | .context_window.total_input_tokens=562000' "${SL_REPO}/test/fixtures/full.json" |
+    COLUMNS=200 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=dashboard \
+      HOME="${BATS_TEST_TMPDIR}/home" "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+  [[ "$out" != *"/0k"* ]] || { echo "unknown rendered as 0k: $out"; return 1; }
+  [[ "$out" == *"562k/--"* ]] || { echo "expected a dash for the unknown side: $out"; return 1; }
+}

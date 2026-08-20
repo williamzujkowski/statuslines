@@ -1,1 +1,1 @@
-feature-x | feature/x +wt | Sonnet | ctx 22% | $0.9000 | 25m | +33/-4
+feature-x | feature/x +wt | Sonnet | ctx 22% | $0.90 | 25m | +33/-4

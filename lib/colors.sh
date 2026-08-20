@@ -118,7 +118,18 @@ sl_threshold_color() {
   elif [ "$value" -ge "$warn" ]; then
     printf '%s' "$warning"
   else
-    printf '%s' "$good"
+    # `quiet = 1` suppresses the in-band colour entirely, so colour on the line
+    # means "this needs you" rather than "this is a number".
+    #
+    # Colouring every healthy value is what produces the rainbow: with a dozen
+    # segments each owning a hue, nothing stands out, and the one value that
+    # actually left its band competes with eleven that did not. Absence of
+    # colour is a stronger signal than green, and it costs nothing to read.
+    if [ "${SL_THEME_quiet:-0}" = "1" ]; then
+      printf 'none'
+    else
+      printf '%s' "$good"
+    fi
   fi
 }
 
@@ -154,4 +165,122 @@ sl_width() {
   local plain
   plain=$(sl_strip_ansi "$1")
   printf '%s' "${#plain}"
+}
+
+# ── State ladder ─────────────────────────────────────────────────────────
+#
+# One vocabulary for "how alarming is this number", so every segment escalates
+# the same way and there is one place to audit it.
+#
+# The ladder deliberately changes a NON-COLOUR channel at every step, because
+# in a 16-colour terminal the warn/critical axis cannot be made safe with hue:
+# the palette belongs to the user's theme, red might sit next to yellow in it,
+# and red/green deficiency affects roughly 8% of men. Hue is therefore the
+# LAST channel added, never the first — WCAG 1.4.1.
+#
+#   normal    plain text, no marker        (and under `quiet`, no colour)
+#   watch     yellow, marker `!`           value has left its normal band
+#   crit      bold red, marker `!!`         value needs action now
+#
+# The marker escalates by repetition rather than by switching glyph, so the
+# severity ordering is legible without a legend and stays pure ASCII.
+#
+# sl_state <value> <warn> <crit> — echoes normal | watch | crit
+sl_state() {
+  local value=$1 warn=$2 crit=$3
+  if [ "$value" -ge "$crit" ]; then
+    printf 'crit'
+  elif [ "$value" -ge "$warn" ]; then
+    printf 'watch'
+  else
+    printf 'normal'
+  fi
+}
+
+# sl_crit_owner
+#
+# Which single metric is allowed to render as critical this frame.
+#
+# Pop-out only works when the alarming thing is unique in its channel: three
+# red tokens are worth less than one, which is why alarm-management practice
+# treats floods as desensitising rather than as three times the warning. So at
+# most one metric may show critical, and the rest degrade to watch.
+#
+# This is computed from the payload rather than counted as segments render,
+# because each segment runs inside a command substitution and any counter it
+# incremented would die with that subshell. Deriving it instead keeps the
+# choice deterministic and identical no matter which segments a theme enables
+# or what order they appear in.
+#
+# Priority is severity of consequence: running out of context ends the session,
+# a spent five-hour window blocks the next few hours, the weekly window is the
+# slowest to bite.
+sl_crit_owner() {
+  local v
+  if sl_numeric ctx_pct; then
+    v=$(sl_num ctx_pct 0)
+    [ "$v" -ge "${SL_THEME_context_crit:-90}" ] && {
+      printf 'context'
+      return 0
+    }
+  fi
+  if sl_has rl5_pct; then
+    v=$(sl_num rl5_pct 0)
+    [ "$v" -ge "${SL_THEME_ratelimit_crit:-90}" ] && {
+      printf 'rl5'
+      return 0
+    }
+  fi
+  if sl_has rl7_pct; then
+    v=$(sl_num rl7_pct 0)
+    [ "$v" -ge "${SL_THEME_ratelimit_crit:-90}" ] && {
+      printf 'rl7'
+      return 0
+    }
+  fi
+  printf ''
+}
+
+# sl_state_cap <owner_id> <state>
+#
+# Downgrades a critical state to watch unless this metric owns the critical
+# slot. Segments call it before painting and before asking for a marker, so the
+# marker and the colour always agree.
+sl_state_cap() {
+  local id=$1 state=$2
+  if [ "$state" = "crit" ] && [ "$(sl_crit_owner)" != "$id" ]; then
+    printf 'watch'
+  else
+    printf '%s' "$state"
+  fi
+}
+
+# sl_state_paint <state> <text>
+sl_state_paint() {
+  local state=$1
+  shift
+  case "$state" in
+    crit)
+      sl_code bold
+      printf '%s' "$_SL_CODE"
+      sl_paint "${SL_THEME_state_crit_color:-red}" "$*"
+      [ "${SL_COLOR_ENABLED:-1}" -eq 1 ] && printf '\033[0m'
+      return 0
+      ;;
+    watch) sl_paint "${SL_THEME_state_watch_color:-yellow}" "$*" ;;
+    *) printf '%s' "$*" ;;
+  esac
+}
+
+# sl_state_marker <state>
+#
+# The redundant, colour-free channel. This is what survives NO_COLOR and
+# colour-vision deficiency, and it is the reason the test suite can assert that
+# the three states differ in TEXT rather than only in escape sequences.
+sl_state_marker() {
+  case "$1" in
+    crit) printf '%s' "${SL_THEME_state_crit_marker:-!!}" ;;
+    watch) printf '%s' "${SL_THEME_state_watch_marker:-!}" ;;
+    *) printf '' ;;
+  esac
 }

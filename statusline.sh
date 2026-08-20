@@ -110,6 +110,7 @@ fi
 
 # ── Parse and render ─────────────────────────────────────────────────────
 sl_parse "$SL_INPUT"
+
 sl_render
 
 # Always succeed. A non-zero exit here would be reported by `claude --debug` as
