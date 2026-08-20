@@ -275,6 +275,31 @@ sl_numeric() {
   esac
 }
 
+# sl_theme_int <key> <default> <max>
+#
+# A theme value used as a NUMBER, validated and bounded.
+#
+# Theme files are untrusted data by design (docs/adr/0001), and a value that
+# reaches a printf star-width is not merely wrong when it is garbage — it is a
+# denial of service. `cost_width = 40000000` makes bash build a forty-megabyte
+# pad, and the render times out with no output at all. Digit-checking is not
+# enough; the magnitude has to be capped too.
+sl_theme_int() {
+  local name="SL_THEME_$1" fallback=$2 max=${3:-200}
+  local value=${!name-}
+  case "$value" in
+    "" | *[!0-9]*)
+      printf '%s' "$fallback"
+      return 0
+      ;;
+  esac
+  if [ "$value" -gt "$max" ]; then
+    printf '%s' "$max"
+  else
+    printf '%s' "$value"
+  fi
+}
+
 # sl_now — current unix time in seconds.
 #
 # Injectable via SL_NOW so that anything time-dependent stays deterministic

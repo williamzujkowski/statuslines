@@ -182,19 +182,75 @@ sl_segment_render() {
   return 0
 }
 
+# The flexible-gap marker.
+#
+# A theme writes `spacer` in a line to push what follows it to the right. The
+# renderer stands a single placeholder byte in for it while the line is being
+# assembled and measured, then expands it to however much space is left over.
+# A control byte is safe here because every payload- and theme-derived string
+# has already had control characters stripped, so this cannot collide with
+# real content.
+SL_SPACER=$'\002'
+
 # sl_join <separator> <fragment>...
+#
+# A spacer neither takes nor receives a separator: the gap IS the separator.
+# Putting " | " on either side of a flexible gap is what makes a right-aligned
+# cluster look like a mistake rather than a decision.
 sl_join() {
-  local sep=$1 out="" first=1
+  local sep=$1 out="" need_sep=0
   shift
   local part
   for part in "$@"; do
     [ -n "$part" ] || continue
-    if [ "$first" -eq 1 ]; then
-      out=$part
-      first=0
-    else
-      out="${out}${sep}${part}"
+    if [ "$part" = "$SL_SPACER" ]; then
+      out="${out}${SL_SPACER}"
+      need_sep=0
+      continue
     fi
+    if [ "$need_sep" -eq 1 ]; then
+      out="${out}${sep}"
+    fi
+    out="${out}${part}"
+    need_sep=1
+  done
+  printf '%s' "$out"
+}
+
+# sl_expand_spacers <line> <columns>
+#
+# Replaces each placeholder with the share of the leftover width it is owed.
+# With no leftover (a narrow terminal) each spacer collapses to a single space,
+# so a tiled window degrades to an ordinary space-separated line rather than
+# overflowing.
+sl_expand_spacers() {
+  local line=$1 columns=$2
+  local count=0 rest=$line
+  while [ "${rest#*"$SL_SPACER"}" != "$rest" ]; do
+    count=$((count + 1))
+    rest=${rest#*"$SL_SPACER"}
+  done
+  [ "$count" -gt 0 ] || {
+    printf '%s' "$line"
+    return 0
+  }
+
+  local content total each extra i pad
+  content=$(($(sl_width "$line") - count))
+  total=$((columns - content))
+  [ "$total" -lt "$count" ] && total=$count
+
+  each=$((total / count))
+  extra=$((total % count))
+
+  local out=$line
+  for i in $(sl_seq 1 "$count"); do
+    pad=$each
+    [ "$i" -le "$extra" ] && pad=$((pad + 1))
+    # Build the run of spaces without spawning anything.
+    local spaces=""
+    while [ "${#spaces}" -lt "$pad" ]; do spaces="${spaces} "; done
+    out=${out/"$SL_SPACER"/$spaces}
   done
   printf '%s' "$out"
 }
@@ -220,6 +276,10 @@ sl_render_line() {
   for name in "${names[@]}"; do
     # No command substitution here: sl_segment_render assigns SL_FRAG and
     # SL_SEGMENT_STATUS, and a subshell would discard both.
+    if [ "$name" = "spacer" ]; then
+      frags+=("$SL_SPACER")
+      continue
+    fi
     sl_segment_render "$name" || :
     case "$SL_SEGMENT_STATUS" in
       ok) frags+=("$SL_FRAG") ;;
@@ -248,14 +308,30 @@ sl_render_line() {
     columns=$((columns - reserve))
   fi
 
+  # Cap the width the line is allowed to use, independent of the terminal.
+  #
+  # A wider terminal is not more readable. The perceptual span in skilled
+  # reading is about fifteen characters to the right of fixation, so a
+  # 190-column line is roughly thirteen fixations — a task, not a glance.
+  # Past about 120 columns extra width buys nothing but eye movement, and a
+  # spacer stretched across a 200-column void is its own kind of unreadable.
+  local maxw
+  maxw=${SL_THEME_max_width:-0}
+  case "$maxw" in "" | *[!0-9]*) maxw=0 ;; esac
+  if [ "$maxw" -gt 0 ] && [ "$columns" -gt "$maxw" ]; then
+    columns=$maxw
+  fi
+
   if [ "$columns" -le 0 ]; then
-    printf '%s' "$line"
+    printf '%s' "$(sl_expand_spacers "$line" 0)"
     return 0
   fi
 
+  # A spacer is zero-width for fitting purposes; it only consumes what is left
+  # over, so it must not itself push the line into the drop path.
   width=$(sl_width "$line")
   [ "$width" -le "$columns" ] && {
-    printf '%s' "$line"
+    printf '%s' "$(sl_expand_spacers "$line" "$columns")"
     return 0
   }
 
@@ -299,7 +375,7 @@ sl_render_line() {
     [ "$width" -le "$columns" ] && break
   done
 
-  printf '%s' "$line"
+  printf '%s' "$(sl_expand_spacers "$line" "$columns")"
 }
 
 # sl_render
@@ -310,6 +386,18 @@ sl_render_line() {
 # problem; a wrong-but-plausible line would be worse still (AGENTS.md §7.3).
 sl_render() {
   local n=1 spec out first=1
+
+  # Collect every segment the theme declares, across all lines, before any of
+  # them render. sl_crit_owner needs this to avoid awarding the critical slot
+  # to a segment that is not on screen.
+  SL_ACTIVE_SEGMENTS=""
+  local scan=1 sspec
+  while [ "$scan" -le 9 ]; do
+    sspec=$(sl_theme_get "line${scan}" '')
+    scan=$((scan + 1))
+    [ -n "$sspec" ] || continue
+    SL_ACTIVE_SEGMENTS="${SL_ACTIVE_SEGMENTS} ${sspec}"
+  done
 
   if [ "${SL_DEGRADED:-0}" -eq 1 ]; then
     printf '%s' "$(sl_paint red "statusline degraded")"

@@ -150,3 +150,42 @@ setup() {
   out=$(sl_scrub "$(printf 'x%.0s' $(seq 1 100))" 10)
   [ "${#out}" -eq 10 ]
 }
+
+@test "sl_theme_int validates and caps a theme-supplied number" {
+  # Theme files are untrusted data by design (ADR-0001). A value that reaches a
+  # printf star-width is not merely wrong when it is garbage — it is a denial of
+  # service: cost_width = 40000000 makes bash build a forty-megabyte pad and the
+  # render times out with no output at all. Digit-checking alone would not have
+  # helped, because 40000000 is all digits; the magnitude has to be capped.
+  SL_THEME_probe=40000000
+  [ "$(sl_theme_int probe 0 40)" = "40" ]
+
+  SL_THEME_probe=7
+  [ "$(sl_theme_int probe 0 40)" = "7" ]
+
+  SL_THEME_probe="40; rm -rf /"
+  [ "$(sl_theme_int probe 3 40)" = "3" ]
+
+  SL_THEME_probe=""
+  [ "$(sl_theme_int probe 5 40)" = "5" ]
+
+  unset SL_THEME_probe
+  [ "$(sl_theme_int probe 9 40)" = "9" ]
+}
+
+@test "every printf field width in a segment is bounded" {
+  # The guard above only helps where it is actually used. This asserts that no
+  # segment passes a raw theme value into a star-width, which is the shape the
+  # bug took.
+  local hits
+  hits=$(grep -n "printf '%\*" "${SL_REPO}"/lib/segments/*.sh || true)
+  [ -n "$hits" ] || skip "no star-width printf in any segment"
+
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      *sl_theme_int*) ;;
+      *) echo "unbounded field width: $line"; return 1 ;;
+    esac
+  done <<<"$hits"
+}

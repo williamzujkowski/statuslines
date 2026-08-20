@@ -7,7 +7,7 @@
 SL_TEST_COLUMNS=120
 SL_TEST_NOW=1755490000
 # shellcheck disable=SC2034 # consumed by the scripts and bats files that source this
-SL_TEST_THEMES="default minimal plain dashboard powerline"
+SL_TEST_THEMES="default minimal plain dashboard powerline instrument"
 
 # sl_test_render <fixture> <theme>
 sl_test_render() {

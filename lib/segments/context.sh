@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 # context — how full the context window is.
 #
+# The primary metric on the line: it has a hard ceiling, it moves every turn,
+# and hitting it changes what the user does. It is the one segment that gets a
+# bar, because a bar is only worth its columns when it is scarce.
+#
 # used_percentage is null before the first API call and right after /compact.
-# That is "unknown", not 0%, and rendering it as 0% is exactly the confidently
-# wrong number AGENTS.md §4.1 exists to prevent. A wrong-typed value is treated
-# the same way, which is why this gates on sl_numeric rather than sl_has.
+# That is "unknown", not 0%, and rendering it as 0% is the confidently wrong
+# number AGENTS.md §4.1 exists to prevent.
 segment_context() {
-  local pct label color size
+  local pct label state marker size
 
   label=${SL_THEME_context_label:-ctx}
 
-  # An extended-context model gets a distinguishable label: 40% of 1M is a very
-  # different situation from 40% of 200k.
   size=$(sl_int ctx_size 0)
-  [ "$size" -gt 200000 ] && label="${label}+"
+  [ "$size" -gt 200000 ] && [ "${SL_THEME_context_extended_mark:-1}" = "1" ] && label="${label}+"
 
   if ! sl_numeric ctx_pct; then
     sl_paint dim "${label} "
-    sl_paint "${SL_THEME_context_unknown_color:-dim}" '--'
+    sl_paint "${SL_THEME_context_unknown_color:-dim}" "${SL_THEME_unknown_glyph:---}"
     return 0
   fi
 
@@ -25,26 +26,27 @@ segment_context() {
   [ "$pct" -lt 0 ] && pct=0
   [ "$pct" -gt 100 ] && pct=100
 
-  color=$(sl_threshold_color "$pct" \
-    "${SL_THEME_context_warn:-60}" "${SL_THEME_context_crit:-85}")
+  state=$(sl_state "$pct" "${SL_THEME_context_warn:-70}" "${SL_THEME_context_crit:-90}")
+  state=$(sl_state_cap context "$state")
+  marker=$(sl_state_marker "$state")
 
   sl_paint dim "${label} "
-  sl_paint "$color" "${pct}%"
+  # Percent padded to a fixed width so the fields to its right keep their
+  # column as the value moves. A number that shifts its neighbours on every
+  # render cannot be found by position, only by reading.
+  sl_state_paint "$state" "$(printf '%*d%%%s' "$(sl_theme_int pct_width 0 10)" "$pct" "$marker")"
 
-  # The bar is decoration; the number above is always printed, so the bar is
-  # never the sole carrier of the value (docs/CODING-STANDARDS.md §8).
   if [ "${SL_THEME_context_bar:-0}" = "1" ]; then
     printf ' '
-    sl_paint "$color" "$(_sl_bar "$pct" "${SL_THEME_context_bar_width:-10}" \
+    sl_state_paint "$state" "$(_sl_bar "$pct" "$(sl_theme_int context_bar_width 10 60)" \
       "${SL_THEME_context_bar_full:-#}" "${SL_THEME_context_bar_empty:-.}")"
   fi
 
   # exceeds_200k_tokens uses a fixed 200k threshold and includes output tokens,
-  # so on a 1M model it can fire while used_percentage is still low. Showing it
-  # separately keeps both facts honest rather than picking one.
-  if sl_bool exceeds_200k; then
+  # so on a 1M model it can fire while used_percentage is still low.
+  if sl_bool exceeds_200k && [ "${SL_THEME_context_200k_mark:-1}" = "1" ]; then
     printf ' '
-    sl_paint red '200k+'
+    sl_paint dim '200k+'
   fi
   return 0
 }

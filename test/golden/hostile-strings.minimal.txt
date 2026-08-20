@@ -1,1 +1,1 @@
-[34mproj[0m[2m · [0m[32mfeature/[41mhighlight[0m +wt[0m[2m · [0m[2mctx [0m[32m45%[0m[2m · [0m[33m$1.25[0m
+[34mproj[0m[2m · [0m[32mfeature/[41mhighlight[0m +wt[0m[2m · [0m[2mctx [0m45%[2m · [0m$1.25

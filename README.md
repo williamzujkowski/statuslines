@@ -127,6 +127,7 @@ it falls back to `default` and writes `statusline: unknown theme <name>, using d
 | `plain` | one line | nothing | same as `default`, with `color = off` globally |
 | `dashboard` | two lines | nothing | everything: agent, effort, PR, burn rate, cache hit ratio, API share, tokens, quota with pace |
 | `powerline` | one line | a Nerd Font | dir, branch, model, context bar, cost, duration, with U+E0B1 separators |
+| `instrument` | one line | nothing | dir, branch, model, then a right-aligned cluster: context bar, quota, cost. Uncoloured while healthy; quota appears only above 70%; state escalates `!` then `!!` before it escalates colour |
 
 `plain` exists for three audiences: terminals and pipes that cannot render color, anyone who sets
 `NO_COLOR`, and the test suite, where it is the proof that every value survives with color
