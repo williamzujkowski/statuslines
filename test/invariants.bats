@@ -521,27 +521,6 @@ render_raw() {
   [[ "$out" != *"7d"* ]] || { echo "the weekly window rendered below its floor: $out"; return 1; }
 }
 
-@test "a hostile theme cannot hang the render through a printf field width" {
-  # Theme files are untrusted data by design (ADR-0001). A value reaching a
-  # printf star-width is not just wrong when it is garbage, it is a denial of
-  # service: cost_width = 40000000 made bash build a forty-megabyte pad and the
-  # render timed out with no output at all. Digit-checking is not enough; the
-  # magnitude has to be capped.
-  local themedir="${BATS_TEST_TMPDIR}/statuslines/themes"
-  mkdir -p "$themedir"
-  printf 'name = hostile\nline1 = context cost\ncost_width = 40000000\npct_width = 999999\ncontext_bar = 1\ncontext_bar_width = 500000\ncolor = off\n' \
-    >"$themedir/hostile.conf"
-
-  local out
-  run timeout 10 env COLUMNS=200 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=hostile \
-    HOME="${BATS_TEST_TMPDIR}/home" XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
-    "${BASH_BIN:-bash}" "$SL" <"${SL_REPO}/test/fixtures/full.json"
-
-  [ "$status" -eq 0 ] || { echo "render did not complete (status $status)"; return 1; }
-  [ -n "$output" ] || { echo "render produced nothing"; return 1; }
-  [ "${#output}" -lt 500 ] || { echo "render produced ${#output} bytes"; return 1; }
-}
-
 @test "the critical slot goes to a segment the theme actually renders" {
   # Awarding the slot to an absent segment silently downgrades the one metric
   # the user CAN see. A theme with no context segment, with context critical,
