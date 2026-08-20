@@ -427,3 +427,37 @@ render_raw() {
   [[ "$out" != *"/0k"* ]] || { echo "unknown rendered as 0k: $out"; return 1; }
   [[ "$out" == *"562k/--"* ]] || { echo "expected a dash for the unknown side: $out"; return 1; }
 }
+
+@test "regression: a lone critical value actually renders as critical" {
+  # The segment and sl_crit_owner each carry their own default threshold. When
+  # they disagreed (85 in the segment, 90 in the owner) a context at 87% was
+  # judged critical by the segment, found no owner, and silently degraded to
+  # watch — a critical state rendered as a caution, with nothing else critical
+  # on the line to justify it.
+  local theme="${BATS_TEST_TMPDIR}/statuslines/themes/bare.conf"
+  mkdir -p "${BATS_TEST_TMPDIR}/statuslines/themes"
+  # Deliberately sets no thresholds, so both defaults are exercised.
+  printf 'name = bare\nline1 = context\nseparator = " "\ncolor = off\n' >"$theme"
+
+  local pct out
+  for pct in 91 95 99; do
+    out=$(jq --argjson p "$pct" '.context_window.used_percentage=$p
+            | del(.rate_limits)' "${SL_REPO}/test/fixtures/full.json" |
+      COLUMNS=140 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=bare \
+        HOME="${BATS_TEST_TMPDIR}/home" XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+        "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+    [[ "$out" == *'!!'* ]] || {
+      echo "ctx ${pct}% did not render as critical: $out"
+      return 1
+    }
+  done
+
+  # And the band below it must still be a watch, not a critical.
+  out=$(jq '.context_window.used_percentage=80 | del(.rate_limits)' \
+    "${SL_REPO}/test/fixtures/full.json" |
+    COLUMNS=140 SL_NOW=1755490000 NO_COLOR=1 STATUSLINE_THEME=bare \
+      HOME="${BATS_TEST_TMPDIR}/home" XDG_CONFIG_HOME="${BATS_TEST_TMPDIR}" \
+      "${BASH_BIN:-bash}" "$SL" 2>/dev/null)
+  [[ "$out" != *'!!'* ]] || { echo "ctx 80% rendered as critical: $out"; return 1; }
+  [[ "$out" == *'!'* ]] || { echo "ctx 80% carried no watch marker: $out"; return 1; }
+}

@@ -55,10 +55,8 @@ _sl_ratelimit_window() {
   [ "$reset" -gt "$now" ] || return 0
   remaining=$(((reset - now) / 60))
 
-  # Time REMAINING, at a precision proportional to how soon it matters. A
-  # reset four hours out does not need its minutes.
-  # Precision proportional to urgency: days out needs no hours, hours out needs
-  # no minutes, and only the last hour needs minutes at all.
+  # Time REMAINING, at a precision proportional to urgency: days out needs no
+  # hours, hours out needs no minutes, and only the last hour needs minutes.
   printf ' '
   if [ "$remaining" -ge 2880 ]; then
     sl_paint dim "$(printf 'resets %dd' "$((remaining / 1440))")"
