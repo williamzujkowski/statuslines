@@ -295,6 +295,10 @@ Additional terminal-specific requirements:
 - Screen readers reading a terminal do not benefit from box-drawing glyphs. The default theme
   MUST NOT depend on Nerd Font or powerline glyphs; themes that do MUST declare
   `requires_font` and be documented as such in `docs/THEMES.md`.
+- `bright_black` / `gray` / `grey` MUST NOT carry content in shipped themes or examples. In a
+  16-color terminal, SGR 90 routinely lands too close to either the background or the foreground
+  to be reliably readable. Use `dim` for de-emphasis instead, and only on text that is not
+  load-bearing once color is stripped.
 - Width MUST be computed in display columns, not bytes. A CJK path or a wide glyph is two
   columns, and truncating by byte count cuts multibyte characters in half and corrupts the line.
 
