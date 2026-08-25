@@ -411,6 +411,12 @@ to contain an escape literal; a theme names a color and never spells one.
 **Bright colors:** `bright_black` (also `gray`, `grey`) `bright_red` `bright_green`
 `bright_yellow` `bright_blue` `bright_magenta` `bright_cyan` `bright_white`
 
+`bright_black` / `gray` / `grey` are available because the 16-color SGR set includes them, but
+they are a poor default for content. On many dark terminal themes they are barely above the
+background, and on light themes they drift toward the foreground. Prefer `dim` for separators,
+labels, and other non-load-bearing de-emphasis, and reserve these names for deliberate,
+theme-specific choices.
+
 **`none`** means "emit this text unpainted". It is not the same as an empty value, which falls back
 to the built-in default (§1.3).
 
